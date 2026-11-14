@@ -1,0 +1,25 @@
+User-agent: *
+Allow: /
+Disallow: /bff/
+
+User-agent: GPTBot
+Allow: /
+Disallow: /bff/
+
+User-agent: ClaudeBot
+Allow: /
+Disallow: /bff/
+
+User-agent: PerplexityBot
+Allow: /
+Disallow: /bff/
+
+User-agent: Google-Extended
+Allow: /
+Disallow: /bff/
+
+User-agent: Bingbot
+Allow: /
+Disallow: /bff/
+
+Sitemap: https://solarpmlab.com/sitemap.xml

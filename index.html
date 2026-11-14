@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solar PM Salary Calculator — Pay by State & Certification</title>
+  <meta name="description" content="Solar Project Manager salary ranges (P25, median, P75) by U.S. state, experience, and certification — PMP, NABCEP, OSHA 30. Free 2026 benchmark calculator.">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#2563eb">
+  <link rel="canonical" href="https://solarpmlab.com/">
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Solar PM Salary Benchmark">
+  <meta property="og:title" content="Solar PM Salary Calculator — Pay by State & Certification">
+  <meta property="og:description" content="Solar Project Manager salary ranges (P25, median, P75) by U.S. state, years of experience, and certification. Free calculator — 2026 BLS + LCA benchmark.">
+  <meta property="og:url" content="https://solarpmlab.com/">
+  <meta property="og:image" content="https://solarpmlab.com/assets/og-image.png">
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Solar PM Salary Calculator">
+  <meta name="twitter:description" content="Free 2026 salary benchmark for Solar Project Managers — P25 / Median / P75 by state, experience, and certification.">
+  <meta name="twitter:image" content="https://solarpmlab.com/assets/og-image.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="assets/css/tokens.css?v=2.0.0">
+  <link rel="stylesheet" href="assets/css/base.css?v=2.0.0">
+  <link rel="stylesheet" href="assets/css/solar-pm-salary.css?v=2.0.0">
+
+  <!-- JSON-LD -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "#org",
+        "name": "Solar PM Salary Benchmark",
+        "url": "https://solarpmlab.com/",
+        "logo": { "@type": "ImageObject", "url": "https://solarpmlab.com/assets/logo.png" }
+      },
+      {
+        "@type": "WebSite",
+        "name": "Solar PM Salary Benchmark",
+        "url": "https://solarpmlab.com/",
+        "publisher": { "@id": "#org" }
+      },
+      {
+        "@type": "WebApplication",
+        "name": "Solar PM Salary Calculator",
+        "description": "Solar Project Manager salary benchmark by state, experience, and certification.",
+        "applicationCategory": "FinanceApplication",
+        "operatingSystem": "Web",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "inLanguage": "en-US",
+        "publisher": { "@id": "#org" }
+      },
+      {
+        "@type": "HowTo",
+        "name": "How to Use the Solar PM Salary Calculator",
+        "description": "Look up P25, median, and P75 solar project manager salaries by U.S. state, experience, and certification.",
+        "step": [
+          { "@type": "HowToStep", "position": "1", "name": "Select location", "text": "Pick a U.S. state or national benchmark. Metro (optional) drills to 100 top markets." },
+          { "@type": "HowToStep", "position": "2", "name": "Choose experience & certification", "text": "Set your experience band (0-2, 3-5, 6+ years) and any certification you hold. Stack additional certs to see combined premiums." },
+          { "@type": "HowToStep", "position": "3", "name": "Review ranges", "text": "See P25 / median / P75 salary ranges plus certification premium breakdown and side-by-side comparison." }
+        ]
+      },
+      {
+        "@type": "Dataset",
+        "name": "Solar PM Salary Benchmark 2026",
+        "description": "BLS OEWS (occupation 11-9021) + H-1B LCA state-level aggregates + certification premium matrix (PMP, NABCEP PVIP, OSHA 30, Electrical License).",
+        "creator": { "@id": "#org" },
+        "publisher": { "@id": "#org" },
+        "dateModified": "2026-11-12"
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          { "@type": "Question", "name": "How is the solar project manager salary calculated?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Salary ranges combine BLS OEWS occupation 11-9021 state benchmarks, H-1B LCA state means, and a certification premium matrix covering PMP, NABCEP PVIP, OSHA 30, and electrical licenses. Estimates only, not an employment offer." } },
+          { "@type": "Question", "name": "Does OSHA 30 add a salary premium?",
+            "acceptedAnswer": { "@type": "Answer", "text": "OSHA 30 is a safety compliance requirement, listed as Required or Preferred by segment. There is no independent OSHA 30 salary premium evidence; when stacked with other credentials it applies a small structural uplift (+2%) to the calculated band, and an electrical license applies +4%. Combined certification premiums are capped at +30%." } },
+          { "@type": "Question", "name": "What is the average solar project manager salary?",
+            "acceptedAnswer": { "@type": "Answer", "text": "The national median solar project manager salary is approximately $105,000 per year, with P25 around $88,000 and P75 around $128,000. Actual ranges vary by state, experience, and certification." } }
+        ]
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+
+  <div id="consent-banner" class="consent-banner" role="dialog" aria-label="Cookie consent" style="display:none">
+    <div class="container">
+      <p>We use essential analytics to improve this tool and keep benchmarks accurate. You can accept or reject — the calculator works either way.</p>
+      <div class="consent-buttons">
+        <button id="consent-accept" class="consent-accept" type="button">Accept</button>
+        <button id="consent-reject" class="consent-reject" type="button">Reject</button>
+      </div>
+    </div>
+  </div>
+
+  <header class="site-header">
+    <div class="container">
+      <div class="site-logo"><a href="/">Solar PM Salary</a></div>
+      <nav aria-label="Main navigation">
+        <a href="/solar-pm-salary-privacy.html">Privacy</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <!-- Hero -->
+    <section class="hero">
+      <div class="container">
+        <p class="hero-eyebrow">2026 Salary Benchmark</p>
+        <h1>Solar PM Salary Calculator</h1>
+        <p>P25 / Median / P75 salary ranges by U.S. state, years of experience, and certification. Free, no sign-up required.</p>
+      </div>
+    </section>
+
+    <section class="container">
+
+      <div id="rate-limit-banner" class="rate-limit-banner" style="display:none" role="alert">
+        Slow down — rate limited. Retry in <span data-countdown></span>.
+      </div>
+
+      <div id="fallback-banner" class="fallback-banner" style="display:none" role="alert">
+        Showing local estimates (backend unreachable). Corrections and flagging disabled — not real salaries.
+      </div>
+
+      <form class="query-form" id="salary-form" autocomplete="off" novalidate>
+        <div class="form-grid">
+          <div class="form-field">
+            <label for="field-state">State</label>
+            <div class="cselect" id="cselect-state"></div>
+            <select id="field-state" name="state" required aria-hidden="true" tabindex="-1" class="cselect-native"></select>
+          </div>
+          <div class="form-field">
+            <label for="field-metro">Metro (optional)</label>
+            <div class="cselect" id="cselect-metro"></div>
+            <select id="field-metro" name="metro" aria-hidden="true" tabindex="-1" class="cselect-native">
+              <option value="">—</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label for="field-experience">Experience</label>
+            <div class="cselect" id="cselect-experience"></div>
+            <select id="field-experience" name="experience" required aria-hidden="true" tabindex="-1" class="cselect-native"></select>
+          </div>
+          <div class="form-field">
+            <label for="field-certification">Primary Certification</label>
+            <div class="cselect" id="cselect-certification"></div>
+            <select id="field-certification" name="certification" required aria-hidden="true" tabindex="-1" class="cselect-native"></select>
+          </div>
+          <div class="form-field">
+            <label for="field-segment">Segment</label>
+            <div class="cselect" id="cselect-segment"></div>
+            <select id="field-segment" name="segment" required aria-hidden="true" tabindex="-1" class="cselect-native"></select>
+          </div>
+        </div>
+
+        <div class="cert-stack-field">
+          <label>Additional certifications (stack)</label>
+          <div class="cert-stack-options" id="cert-stack-wrap">
+            <button type="button" class="cert-chip" data-cert="pmp">PMP</button>
+            <button type="button" class="cert-chip" data-cert="osha30">OSHA 30</button>
+            <button type="button" class="cert-chip" data-cert="electrical">Electrical License</button>
+            <button type="button" class="cert-chip" data-cert="nabcep">NABCEP PVIP</button>
+          </div>
+        </div>
+
+        <div class="submit-row">
+          <button type="submit" class="btn btn-primary" id="btn-submit">Check Salary</button>
+        </div>
+      </form>
+
+      <section class="results-section" id="results" aria-live="polite" aria-label="Salary results"></section>
+
+      <article class="thick-content">
+        <h2>How to Use This Calculator</h2>
+        <p>Select your state, experience band, primary certification, and market segment. Stack additional certifications to see combined premium estimates. The calculator returns P25, median, and P75 annual salary ranges based on 2026 BLS OEWS and H-1B LCA benchmarks.</p>
+
+        <h3>Why Certification Matters</h3>
+        <p>Salary benchmarks for solar project managers vary most by three factors: state cost of labor, years of experience, and certifications held. PMP and NABCEP PVIP show measurable premium impact; OSHA 30 functions as a compliance gate rather than an independent premium. When stacked, OSHA 30 applies a small structural uplift (+2%) and an electrical license +4%; combined certification premiums are capped at +30%.</p>
+
+        <h3>Formula and Data Sources</h3>
+        <blockquote>Range equals BLS OEWS state benchmark (occupation 11-9021) times experience coefficient times certification premium matrix. Premiums: PMP +$20K to $30K (SurgePV); NABCEP PVIP +$3 to $8 per hour (skillit, 2080-hour annual reference); OSHA 30 Required or Preferred (IECA, Mortenson, PEA). Version 2026.11.</blockquote>
+
+        <h3>Applicability Boundaries</h3>
+        <p>OSHA 30 has no independent salary premium evidence; it is displayed as Required or Preferred only, and stacking it applies a small structural uplift (+2%) to the calculated band. NABCEP hourly premiums are converted to annual display at 2,080 hours for reference only. All figures are estimates and do not constitute an employment offer or guarantee.</p>
+
+        <h3>Data Provenance</h3>
+        <p>BLS Occupational Employment and Wage Statistics (OEWS), H-1B LCA state-level aggregates, SurgePV PMP premium survey, skillit NABCEP hourly data, IECA, Mortenson, and Philadelphia Energy Authority OSHA 30 job postings.</p>
+
+        <h3>Frequently Asked Questions</h3>
+        <div class="faq-block">
+          <div class="faq-item">
+            <h4>How is the solar project manager salary calculated?</h4>
+            <p>Salary ranges combine BLS OEWS occupation 11-9021 state benchmarks, H-1B LCA state means, and a certification premium matrix covering PMP, NABCEP PVIP, OSHA 30, and electrical licenses. Estimates only, not an employment offer.</p>
+          </div>
+          <div class="faq-item">
+            <h4>Does OSHA 30 add a salary premium?</h4>
+            <p>OSHA 30 is a safety compliance requirement, listed as Required or Preferred by segment. There is no independent OSHA 30 salary premium evidence; when stacked with other credentials it applies a small structural uplift (+2%) to the calculated band, and an electrical license applies +4%. Combined certification premiums are capped at +30%.</p>
+          </div>
+          <div class="faq-item">
+            <h4>What is the average solar project manager salary?</h4>
+            <p>The national median solar project manager salary is approximately $105,000 per year, with P25 around $88,000 and P75 around $128,000. Actual ranges vary by state, experience, and certification.</p>
+          </div>
+        </div>
+      </article>
+
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <div>&copy; 2026 Solar PM Salary Benchmark. Estimates only.</div>
+      <div><a href="/solar-pm-salary-privacy.html">Privacy Policy</a></div>
+    </div>
+  </footer>
+
+  <!-- Toast -->
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="assets/js/_site_config.js?v=2.0.0"></script>
+  <script src="assets/js/api.js?v=2.0.0"></script>
+  <script src="/js/telemetry-sdk.js?v=2.0.0" onerror="console.warn('[solar-pm-salary] telemetry-sdk not reachable — tracking disabled')"></script>
+  <script src="assets/js/solar-pm-salary-app.js?v=2.0.0"></script>
+</body>
+</html>

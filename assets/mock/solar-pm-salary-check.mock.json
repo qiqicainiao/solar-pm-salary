@@ -1,0 +1,43 @@
+{
+  "code": 0,
+  "msg": "ok",
+  "trace_id": "lc_20261114_7028bd",
+  "data": {
+    "items": [
+      {
+        "dimension": "salary",
+        "p25": 88200,
+        "median": 105000,
+        "p75": 128100,
+        "unit": "usd_per_year",
+        "rule_id": "sal_us_nc_3-5_none_all_v3",
+        "rule_version": 3,
+        "confidence": 0.82,
+        "matched_terms": [
+          "US",
+          "NC",
+          "3-5",
+          "all"
+        ],
+        "diff_detail": "baseline_experience",
+        "sample_source": "user",
+        "premiums": []
+      }
+    ],
+    "summary": {
+      "state_median": 105000,
+      "national_median": 105000,
+      "cert_premiums": [],
+      "note": "Baseline: BLS OEWS 2026 | Experience: 3-5 | State: NC (x1) | Segment: all | Certs: none | Estimates only, not an offer."
+    },
+    "free_quota_used": 1,
+    "plan": "free",
+    "quota_info": {
+      "limit": null,
+      "unlimited": true,
+      "plan": "free",
+      "used": 1
+    },
+    "check_duration_ms": 0
+  }
+}

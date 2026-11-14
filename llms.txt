@@ -1,0 +1,28 @@
+# Solar PM Salary Benchmark — llms.txt
+
+> Free salary benchmark calculator for solar project managers. P25/median/P75 ranges by U.S. state, experience band, and certification (PMP, NABCEP PVIP, Electrical License, OSHA 30). No sign-up, no personal data collected.
+
+Canonical origin: https://solarpmlab.com
+
+## Pages
+- [Solar PM Salary Calculator](https://solarpmlab.com/): the main tool — P25/median/P75 salary ranges by state, experience, certification, and segment.
+- [Privacy policy](https://solarpmlab.com/solar-pm-salary-privacy.html): what is and is not collected; analytics consent.
+
+## What this site is
+A free salary benchmark calculator for solar project managers, providing P25/median/P75 ranges by state, experience band, and certification. The calculator lives on the homepage.
+
+## Data sources
+- BLS Occupational Employment and Wage Statistics (OEWS), occupation 11-9021
+- H-1B LCA state-level aggregates
+- SurgePV PMP premium survey
+- skillit NABCEP PVIP hourly data
+- IECA / Mortenson / Philadelphia Energy Authority OSHA 30 job posting analysis
+
+## Important notes
+- All salary figures are estimates, not guarantees.
+- OSHA 30 is a compliance requirement (Required/Preferred) with no independent salary premium; when stacked it applies a small structural uplift (+2%), and an electrical license +4%. Combined certification premiums are capped at +30%.
+- NABCEP PVIP premiums are hourly (+$3 to $8/hr); annual display uses 2,080 hours for reference only.
+- No personal data is collected. Corrections are bucketed (e.g. $75K to $100K), not exact amounts.
+
+## Contact
+Privacy questions: apj56423@gmail.com
