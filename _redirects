@@ -1,0 +1,2 @@
+# www -> apex (canonical host is https://solarpmlab.com, see <link rel="canonical">)
+https://www.solarpmlab.com/*  https://solarpmlab.com/:splat  301!
