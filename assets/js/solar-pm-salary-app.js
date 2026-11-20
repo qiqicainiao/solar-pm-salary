@@ -407,15 +407,10 @@
       if (T && typeof T.setConsent === "function") T.setConsent(false);
       if (consentBanner) consentBanner.remove();
     } else if (consentBanner) {
-
-      consentBanner.style.display = "none";
-      const reveal = () => {
-        consentBanner.style.display = "";
-        document.removeEventListener("pointerdown", reveal);
-        document.removeEventListener("keydown", reveal);
-      };
-      document.addEventListener("pointerdown", reveal, { once: true });
-      document.addEventListener("keydown", reveal, { once: true });
+      // 2026-11-20 修：此前首屏 display:none，要等用户先点页面任意处才 reveal。
+      // 后果是"打开看一眼就走"的访客永远看不到横幅 → 永远不表态 → pv_real 恒为 0，
+      // 判定永远停在"样本不够"。同意横幅必须在首屏可见，且不遮挡工具主体。
+      consentBanner.style.display = "";
     }
     if (consentBtnAccept) consentBtnAccept.addEventListener("click", () => {
       saveConsent("accepted");
