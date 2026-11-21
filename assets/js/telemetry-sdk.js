@@ -482,7 +482,9 @@
     var payload = { page_path: path, nav_type: vitals.nav || 'navigate' };
     if (vitals.fcp !== null) { payload.fcp_ms = vitals.fcp; }
     if (vitals.lcp !== null) { payload.lcp_ms = vitals.lcp; }
-    if (vitals.cls > 0) { payload.cls_x1000 = Math.round(vitals.cls * 1000); }
+    // CLS 是累计位移分：没位移 = 0 是**有效测量**，不是"没值"。
+    // 若 0 就不发，聚合层会把"这页很稳"和"这页没采到"混成一件事。
+    payload.cls_x1000 = Math.round(vitals.cls * 1000) || 0;
     if (vitals.inp !== null) { payload.inp_ms = vitals.inp; }
     if (vitals.ttfb !== null) { payload.ttfb_ms = vitals.ttfb; }
     Telemetry.track('page_vitals', payload);
