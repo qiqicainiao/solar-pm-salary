@@ -279,7 +279,11 @@
   function toolCompleted(durationMs, succeeded) {
     ev("tool_completed", { tool_name: "solar-pm-salary", succeeded: succeeded === true, duration_ms: durationMs });
   }
-  function toolFailed(errorCode) { ev("tool_failed", { error_code: errorCode }); }
+  // error_stage：失败发生在哪一段（init/input/parse/compute/render/network/timeout/unknown）。
+  // 只记 error_code 的话，"接口报错"和"渲染崩了"在数据里长得一模一样，没法定位。
+  function toolFailed(errorCode, errorStage) {
+    ev("tool_failed", { error_code: errorCode, error_stage: errorStage || "unknown" });
+  }
 
   function checkStarted(f) {
     ev("check_started", factPairAll(f));
@@ -506,7 +510,7 @@
       state.checkDurationMs = Math.round(performance.now() - submitStart);
       if (!resp.ok) {
         handleError(resp, f);
-        toolFailed(String(resp.code || "UNKNOWN_ERROR").toLowerCase());
+        toolFailed(String(resp.code || "UNKNOWN_ERROR").toLowerCase(), "compute");
         toolCompleted(Math.round(performance.now() - submitStart), false);
         return;
       }
@@ -527,7 +531,7 @@
       if (state.isMock) {
 
         checkFailed(f, "NETWORK", 0);
-        toolFailed("mock_fallback");
+        toolFailed("mock_fallback", "compute");
       } else {
         checkCompleted(items[0], f, state.checkDurationMs, renderMs, items.length, dimensionCount, null, state.checkDurationMs + renderMs);
         state.resultShown = items.length > 0;
@@ -541,7 +545,7 @@
     }).catch(function () {
       if (myId !== state.requestId) return;
       handleError({ ok: false, code: "RENDER_ERROR", http: 0 }, f);
-      toolFailed("render_error");
+      toolFailed("render_error", "render");
       toolCompleted(Math.round(performance.now() - submitStart), false);
     }).finally(function () {
       if (myId !== state.requestId) return;
