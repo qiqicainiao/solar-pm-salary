@@ -351,17 +351,22 @@
     var path = normalizePagePath(global.location ? global.location.pathname : '/');
     if (path === state.lastPagePath) { return; }
     state.lastPagePath = path;
-    // 落地页先结掉上一页的 vitals（SPA 路由切页：LCP/CLS 是文档级累积值，
-    // 不切分就会把两页的数字混成一条，倒过来污染性能判断）
-    flushVitals(path);
-    var extra = {};
-    // 渠道只在**第一次** page_view 记：后续路由切换 location.search 通常不变，
-    // 每页都带一遍只会把同一来源重复计入。
+    // 只在**切页**时结上一页的账。首次 page_view 绝不能 flush：
+    // 那一刻 LCP/CLS/INP 都还没稳定（它们发生在 load 之后），提前结账会把
+    // page_vitals 变成"只有 ttfb 的空壳"，而 vitalsSent 已置位 → 这一页再也补不上。
+    // 2026-11-21 本地自测实证：CLS 涨到 0.1369 也没进上报，就是这么丢的。
+    if (vitals.path && vitals.path !== path) { flushVitals(path); }
+    // 渠道只在**第一次** page_view 记一次（utm_capture 独立事件，不塞 page_view）：
+    // ①UTM 天然是"这次会话怎么来的"，属会话属性，不该每页重复；
+    // ②九站统一口径——自研 SDK 的站由 telemetry-extras.js 发同名事件，
+    //   若这里塞进 page_view，聚合时要同时处理"两种形状"，早晚出错。
     if (!state.utmSent) {
-      extra = readUtm();
       state.utmSent = true;
+      var utm = readUtm();
+      // 没有 utm_source 的零散参数（只带 utm_medium 之类）不构成可归因来源，不发。
+      if (utm.utm_source) { Telemetry.track('utm_capture', utm); }
     }
-    Telemetry.track('page_view', extra);
+    Telemetry.track('page_view', {});
   }
 
   /** 只从当前 URL 的 query 里取 UTM 白名单键（P0-3）。未同意时不读——由 track 门控兜底。 */
@@ -663,7 +668,13 @@
         retryCount: state.retryCount,
         manifestLoaded: !!state.manifest,
         consent: state.consent,
-        consentMode: state.consentMode
+        consentMode: state.consentMode,
+        // vitals 现状可查：排查"为什么没上报"时不用再猜（本地/线上都能 console 出来）
+        vitals: {
+          path: vitals.path, nav: vitals.nav, fcp: vitals.fcp, lcp: vitals.lcp,
+          cls: vitals.cls, inp: vitals.inp, ttfb: vitals.ttfb,
+          sentPaths: Object.keys(vitalsSent)
+        }
       };
     }
   };
