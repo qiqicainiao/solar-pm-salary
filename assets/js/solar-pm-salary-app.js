@@ -439,7 +439,7 @@
         if (T && typeof T.setConsent === "function") T.setConsent(false);
         consentChanged(false);
         if (consentBanner) consentBanner.style.display = "";
-        toast("Cookie 同意已撤回，本站不再采集使用数据。");      });
+        toast("Cookie consent withdrawn. This site no longer collects usage data.");      });
     }
   }
 

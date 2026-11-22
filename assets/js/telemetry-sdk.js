@@ -22,6 +22,9 @@
     retryCount: 0,
     lastPagePath: null,
     sessRef: null,
+    // 站点自管会话策略（收敛用，默认 null = 保持原行为）
+    sessRefProvider: null,
+    sessRefClear: null,
     subjectSid: null,
     subjectSidTried: false,
     inited: false,
@@ -109,6 +112,18 @@
     // 那时 siteId 还是空串，不校验就会缓存一个 ":xxxx" 并永久沿用 → 服务端判非法会话。
     if (state.sessRef && state.sessRef.indexOf(prefix) === 0) { return state.sessRef; }
     if (!siteId) { return ''; }
+    // 站点自带会话策略（2026-11-22 收敛用）：老自研站的 sess_ref 存在 localStorage
+    // 且带 24h 滑动过期，直接换成 sessionStorage 会把这些站的跨标签会话打断。
+    // 默认 null = 不改任何现有行为；只在 init 时显式传入才生效。
+    if (state.sessRefProvider) {
+      var ext = '';
+      try { ext = String(state.sessRefProvider() || ''); } catch (e) { ext = ''; }
+      if (ext.indexOf(prefix) === 0) {
+        state.sessRef = ext;
+        return ext;
+      }
+      return '';
+    }
     state.sessRef = null;
     if (state.consentMode === 'granted') {
       try {
@@ -126,6 +141,8 @@
 
   function persistSessRef() {
     if (!state.sessRef) { return; }
+    // 站点自带会话策略时存储由站点管（它用的是自己的 key 和 TTL），SDK 不越界代写。
+    if (state.sessRefProvider) { return; }
     try { if (global.sessionStorage) { global.sessionStorage.setItem(SESS_KEY, state.sessRef); } } catch (e) { /* noop */ }
   }
 
@@ -146,6 +163,10 @@
       }
     } catch (e) { /* noop */ }
     state.sessRef = null;
+    // 站点自管会话时，撤回必须连它的存储一起清——否则"拒绝了但下次进站还能连上同一段会话"。
+    if (state.sessRefClear) {
+      try { state.sessRefClear(); } catch (e) { /* noop */ }
+    }
     state.subjectSid = null;
     state.subjectSidTried = false;
   }
@@ -617,6 +638,8 @@
       }
       state.siteId = String(opts.siteId);
       state.endpoint = String(opts.endpoint);
+      state.sessRefProvider = typeof opts.sessRefProvider === 'function' ? opts.sessRefProvider : null;
+      state.sessRefClear = typeof opts.sessRefClear === 'function' ? opts.sessRefClear : null;
       state.consent = opts.consent === true;
       state.consentMode = opts.consentMode === 'granted' || opts.consentMode === 'denied'
         ? opts.consentMode
