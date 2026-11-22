@@ -21,6 +21,7 @@
     oversizeCount: 0,
     retryCount: 0,
     lastPagePath: null,
+    sessRef: null,
     subjectSid: null,
     subjectSidTried: false,
     inited: false,
@@ -94,36 +95,59 @@
     return 'desktop';
   }
 
-  function getSessRef(siteId) {
-    var key = 'vidrank_sess_ref';
-    try {
-      var v = global.sessionStorage ? global.sessionStorage.getItem(key) : null;
-      if (v && v.indexOf(siteId + ':') === 0) { return v; }
-      var fresh = siteId + ':' + uuid32();
-      if (global.sessionStorage) { global.sessionStorage.setItem(key, fresh); }
-      return fresh;
-    } catch (e) {
-      return siteId + ':' + uuid32();
-    }
-  }
-
+  var SESS_KEY = 'vidrank_sess_ref';
   var BUFFER_KEY = 'vidrank_tm_buffer';
 
-  function persistBuffer() {
-    if (state.consentMode !== 'unset') { return; }
-    try { if (global.sessionStorage) { global.sessionStorage.setItem(BUFFER_KEY, JSON.stringify(state.queue)); } } catch (e) { /* noop */ }
+  /**
+   * 会话标识（P1-5）：未决态只在内存里生成，**不落任何存储**。
+   * 同意那一刻 setConsent(true) 才 persistSessRef()，撤回/拒绝时连存储带内存一起清。
+   * 语义上 sess_ref 是"把这个人这次访问串起来"，未表态就写等于先认人再问，越界。
+   */
+  function getSessRef(siteId) {
+    var prefix = siteId + ':';
+    // 缓存必须校验前缀：SDK.init 之前就有调用方（_diag / 站点自身的 state 初始化），
+    // 那时 siteId 还是空串，不校验就会缓存一个 ":xxxx" 并永久沿用 → 服务端判非法会话。
+    if (state.sessRef && state.sessRef.indexOf(prefix) === 0) { return state.sessRef; }
+    if (!siteId) { return ''; }
+    state.sessRef = null;
+    if (state.consentMode === 'granted') {
+      try {
+        var v = global.sessionStorage ? global.sessionStorage.getItem(SESS_KEY) : null;
+        if (v && v.indexOf(siteId + ':') === 0) {
+          state.sessRef = v;
+          return v;
+        }
+      } catch (e) { /* 存储不可用 → 退化为内存级会话 */ }
+    }
+    state.sessRef = siteId + ':' + uuid32();
+    if (state.consentMode === 'granted') { persistSessRef(); }
+    return state.sessRef;
   }
 
-  function restoreBuffer() {
-    if (state.consentMode !== 'unset') { return; }
-    try {
-      var raw = global.sessionStorage ? global.sessionStorage.getItem(BUFFER_KEY) : null;
-      if (raw) { state.queue = JSON.parse(raw) || []; }
-    } catch (e) { /* noop */ }
+  function persistSessRef() {
+    if (!state.sessRef) { return; }
+    try { if (global.sessionStorage) { global.sessionStorage.setItem(SESS_KEY, state.sessRef); } } catch (e) { /* noop */ }
   }
 
   function clearBuffer() {
     try { if (global.sessionStorage) { global.sessionStorage.removeItem(BUFFER_KEY); } } catch (e) { /* noop */ }
+  }
+
+  /**
+   * 拒绝/撤回时的清理（P1-6）：会话标识、未决缓冲、假名主体 sid 全部就地消失。
+   * 只清 buffer 不清 sess_ref，等于"拒绝了但下次进站还能把你连上同一段会话"。
+   */
+  function clearConsentArtifacts() {
+    clearBuffer();
+    try { if (global.sessionStorage) { global.sessionStorage.removeItem(SESS_KEY); } } catch (e) { /* noop */ }
+    try {
+      if (global.localStorage && state.siteId) {
+        global.localStorage.removeItem('vr_sid_' + state.siteId);
+      }
+    } catch (e) { /* noop */ }
+    state.sessRef = null;
+    state.subjectSid = null;
+    state.subjectSidTried = false;
   }
 
   function autoFields() {
@@ -207,7 +231,8 @@
       state.droppedCount++;
       if (isDebug()) { console.warn('[telemetry] queue exceeds 200, dropping oldest events (total ' + state.droppedCount + ')'); }
     }
-    persistBuffer();
+    // P1-5：未决态队列**只留内存**。跨页面导航会丢队列，这是明确取舍——
+    // 把"用户还没表态时读到的页面"写进 sessionStorage，是拿存储换留存，不该做。
     scheduleFlush();
   }
 
@@ -596,7 +621,9 @@
       state.consentMode = opts.consentMode === 'granted' || opts.consentMode === 'denied'
         ? opts.consentMode
         : (opts.consent === true ? 'granted' : 'unset');
-      if (state.consentMode === 'unset') { restoreBuffer(); }
+      // 未决态没有可恢复的缓冲：上一页的队列只活在上一页的内存里（P1-5）。
+      // 顺带清掉旧版 SDK 留下的 sess_ref / buffer / sid —— 没同意就不该有存储残留。
+      if (state.consentMode !== 'granted') { clearConsentArtifacts(); }
       state.inited = true;
       if (opts.manifestUrl) { loadManifest(String(opts.manifestUrl)); }
       // 采集器要在 setupAutoPageView 之前挂好：sendPageView 会先 flushVitals，
@@ -644,14 +671,22 @@
 
     setConsent: function (value) {
       var granted = value === true;
+      var wasGranted = state.consentMode === 'granted';
       state.consent = granted;
       state.consentMode = granted ? 'granted' : 'denied';
       if (granted) {
+        // 同意那一刻才把会话标识落存储（P1-5）；未决期它只活在内存里。
+        persistSessRef();
         if (state.inited) { flush(); }
       } else {
         state.droppedCount += state.queue.length;
         state.queue = [];
-        clearBuffer();
+        // 拒绝/撤回：sess_ref + buffer + 假名 sid 一并清（P1-6）。
+        // 已经同意过的人再撤回，localStorage 里的 sid 也必须消失。
+        clearConsentArtifacts();
+      }
+      if (!granted && wasGranted && isDebug()) {
+        console.info('[telemetry] consent withdrawn; session ref, buffer and subject sid cleared');
       }
     },
 

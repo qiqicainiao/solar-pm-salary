@@ -428,6 +428,19 @@
       if (consentBanner) consentBanner.style.display = "none";
       consentChanged(false);
     });
+
+    // P1-7：页脚 Cookie 设置 = 撤回入口。撤回后横幅重新出现，人能立刻改主意；
+    // 会话标识与缓冲由 SDK 的 setConsent(false) 一并清掉（P1-6）。
+    const settings = document.getElementById("solar-consent-settings");
+    if (settings) {
+      settings.addEventListener("click", (e) => {
+        if (e && e.preventDefault) e.preventDefault();
+        saveConsent("rejected");
+        if (T && typeof T.setConsent === "function") T.setConsent(false);
+        consentChanged(false);
+        if (consentBanner) consentBanner.style.display = "";
+        toast("Cookie 同意已撤回，本站不再采集使用数据。");      });
+    }
   }
 
   const state = {
