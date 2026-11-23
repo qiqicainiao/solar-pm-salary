@@ -337,6 +337,89 @@
   function resultDwell(dwellSeconds, dimCount) {
     ev("result_dwell", { dwell_seconds: dwellSeconds, dimension_count: dimCount });
   }
+  // Q3 的两个分子（export / result_copied）此前恒为 0：结果页当天只有三个"反馈"按钮，
+  // 没有任何导出/复制入口，事件在结构上就不可能产生。补按钮的同时补埋点。
+  // 字段用语义字典里预留的 L4：export_format / copy_format / item_count（不新增字典键）。
+  function resultCopied(copyFormat, itemCount) {
+    ev("result_copied", { copy_format: copyFormat, item_count: itemCount });
+  }
+  function resultExported(exportFormat, itemCount) {
+    ev("export", { export_format: exportFormat, item_count: itemCount });
+  }
+
+  /** 复制与导出共用同一份事实，避免"屏幕上看到的"和"复制出去的"不一致。 */
+  function resultLines(item, f) {
+    const money = (v) => (v != null && Number.isFinite(Number(v)) ? "$" + Number(v).toLocaleString() : "—");
+    const lines = [
+      "Solar PM Salary Benchmark — estimate",
+      "State: " + ((f && f.state) || "—") + " | Experience: " + ((f && f.experience_bucket) || "—"),
+      "P25 " + money(item.p25) + " | Median " + money(item.median) + " | P75 " + money(item.p75)
+    ];
+    const premiums = Array.isArray(item.premiums) ? item.premiums : [];
+    if (premiums.length) {
+      lines.push("Certification impact:");
+      premiums.forEach((p) => lines.push("  " + labelizeCert(p.cert) + ": " + p.amount));
+    }
+    lines.push("Source: BLS OEWS 2026.11 — estimates only.");
+    return lines;
+  }
+
+  function copyResult(item, f) {
+    const text = resultLines(item, f).join("\n");
+    const done = () => { resultCopied("text", 1); toast("Copied to clipboard.", "success"); };
+    const fail = () => toast("Copy blocked by your browser. Select the numbers above instead.", "error");
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      navigator.clipboard.writeText(text).then(done).catch(fail);
+      return;
+    }
+    // 非安全上下文（http）没有 clipboard API，退回 execCommand。
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand ? document.execCommand("copy") : false;
+      document.body.removeChild(ta);
+      if (ok) { done(); } else { fail(); }
+    } catch (e) { fail(); }
+  }
+
+  function csvCell(v) {
+    const s = v == null ? "" : String(v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+
+  function exportResultCsv(item, f) {
+    const premiums = Array.isArray(item.premiums) ? item.premiums : [];
+    const rows = [
+      ["metric", "value"],
+      ["state", (f && f.state) || ""],
+      ["experience_bucket", (f && f.experience_bucket) || ""],
+      ["p25", item.p25 != null ? item.p25 : ""],
+      ["median", item.median != null ? item.median : ""],
+      ["p75", item.p75 != null ? item.p75 : ""]
+    ];
+    premiums.forEach((p) => rows.push(["cert:" + p.cert, p.amount]));
+    const csv = rows.map((r) => r.map(csvCell).join(",")).join("\r\n");
+    try {
+      const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "solar-pm-salary-" + ((f && f.state) || "us").toLowerCase() + ".csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      resultExported("csv", rows.length - 1);
+      toast("CSV downloaded.", "success");
+    } catch (e) {
+      toast("Export failed in this browser.", "error");
+    }
+  }
 
   function hasAttribution(item) {
     return !!(item && item.rule_id && item.rule_version !== null && item.rule_version !== undefined && item.rule_version !== "");
@@ -616,8 +699,16 @@
     actions.innerHTML =
       '<button type="button" class="action-btn confirm" id="btn-confirm"' + disabled + '>✓ This looks right</button>' +
       '<button type="button" class="action-btn correct" id="btn-correct"' + disabled + '>✗ Salary needs correction</button>' +
-      '<button type="button" class="action-btn missing" id="btn-missing"' + disabled + '>! Something else is off</button>';
+      '<button type="button" class="action-btn missing" id="btn-missing"' + disabled + '>! Something else is off</button>' +
+      '<button type="button" class="action-btn util" id="btn-copy-result">⧉ Copy result</button>' +
+      '<button type="button" class="action-btn util" id="btn-export-csv">↓ Export CSV</button>';
     resultsEl.appendChild(actions);
+
+    // 复制/导出不依赖后端归因，mock 模式下也照常可用（方便本地验收）。
+    const copyBtn = document.getElementById("btn-copy-result");
+    if (copyBtn) copyBtn.addEventListener("click", () => copyResult(item, f));
+    const exportBtn = document.getElementById("btn-export-csv");
+    if (exportBtn) exportBtn.addEventListener("click", () => exportResultCsv(item, f));
 
     document.getElementById("btn-confirm").addEventListener("click", (event) => {
       if (state.isMock) return;

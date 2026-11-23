@@ -457,6 +457,9 @@
 .action-btn.correct:hover { background: var(--color-warning-bg); }
 .action-btn.missing { color: var(--color-error); border-color: var(--color-error); }
 .action-btn.missing:hover { background: var(--color-error-bg); }
+/* 复制/导出：中性色，与三个"反馈"按钮区分开，避免被误当成表态。 */
+.action-btn.util { color: var(--color-blue-700); border-color: var(--color-blue-700); }
+.action-btn.util:hover { background: var(--color-blue-50, var(--bg-elevated)); }
 
 .correction-panel {
   background: var(--color-gray-50);
