@@ -108,6 +108,22 @@
     return false;
   }
 
+  /**
+   * 把服务端的 `YYYY-MM-DD HH:MM:SS` 格式化成 "Dec 24, 2026"。
+   *
+   * 刻意**不**用 `new Date(...)`：这个字符串没有时区，`new Date('2026-12-24 18:47:39')`
+   * 在 Safari 直接 Invalid Date，在别处又会按浏览器本地时区解释 —— 同一个人换个时区
+   * 就看到不同的到期日。字符串切分没有这个问题。
+   */
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function fmtYmd(s) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || ''));
+    if (!m) return '';
+    const idx = parseInt(m[2], 10) - 1;
+    if (!MONTHS[idx]) return '';
+    return MONTHS[idx] + ' ' + parseInt(m[3], 10) + ', ' + m[1];
+  }
+
   // ---------------------------------------------------------------- 数据
 
   async function loadMe() {
@@ -204,9 +220,13 @@
       return;
     }
 
-    // 付费：不显示次数（避免"还剩 987 次"这种没意义的读数）
+    // 付费：不显示次数（避免"还剩 987 次"这种没意义的读数），但要告诉他买到什么时候 ——
+    // 订阅到期后会自动回到免费档，用户有权知道是哪一天（不该靠"哪天突然不能用了"发现）。
     if (isPro() || q.limit === null) {
-      line.textContent = isPro() ? 'Pro — unlimited checks' : '';
+      const until = isPro() && S.billing ? fmtYmd(S.billing.current_period_end) : '';
+      line.textContent = isPro()
+        ? ('Pro — unlimited checks' + (until ? ' · active until ' + until : ''))
+        : '';
       line.hidden = line.textContent === '';
       line.classList.remove('is-blocked');
       return;

@@ -1,7 +1,7 @@
 window.SITE_CONFIG = {
   ENV: "prod",
   API_BASE: "",
-  VERSION: "2.2.0",
+  VERSION: "2.3.0",
   SITE_ID: "solar-pm-salary",
   SLUG: "solar-pm-salary",
 
