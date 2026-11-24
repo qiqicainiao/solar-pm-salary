@@ -182,7 +182,7 @@
         </div>
       </form>
 
-      <!-- 免费额度：服务端算的 used/remaining，不在这里做加减 -->
+      <!-- Free quota: used/remaining come from the server; never adjust them client-side. -->
       <p class="quota-line" id="quota-line" hidden></p>
 
       <section class="results-section" id="results" aria-live="polite" aria-label="Salary results"></section>
@@ -234,7 +234,7 @@
   <!-- Toast -->
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <!-- 账号弹层：静态写在 HTML 里（不用 JS 拼），CSP 不必放开 innerHTML 注入 -->
+  <!-- Account modal lives in the markup (not built by JS), so the CSP needs no innerHTML allowance. -->
   <div class="modal-backdrop" id="auth-modal" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="auth-title">
       <button type="button" class="modal-close" id="auth-close" aria-label="Close">×</button>
