@@ -322,6 +322,67 @@
     container.hidden = false;
   }
 
+  // ---------------------------------------------------------------- 网络限额
+
+  /**
+   * 匿名身份日限（403 ABUSE_CAPPED）—— 与"额度用尽"是两件事，必须分开讲：
+   *   · QUOTA_BLOCKED = 你自己的 3 次用完了 → 付费墙；
+   *   · ABUSE_CAPPED = 这个网络今天启动的免费次数太多（共享出口 / 有人在刷）→ 登录即可继续。
+   *
+   * 不把两者混成一个文案，是因为它们的出路不同：前者只能等重置或付费，后者登录就能继续。
+   * 服务端按 `ip|ua` 计身份，共享出口（公司网 / 移动网络）下真实用户会被别人的用量连累，
+   * 所以这里**必须**给登录入口 —— 没有出路的 403 就是把人赶走。
+   */
+  function showNetworkCap(container, capInfo) {
+    if (!container) return;
+    container.innerHTML = '';
+
+    const card = document.createElement('section');
+    card.className = 'paywall';
+    card.setAttribute('role', 'region');
+    card.setAttribute('aria-label', 'Network limit reached');
+
+    const eyebrow = document.createElement('p');
+    eyebrow.className = 'paywall-eyebrow';
+    eyebrow.textContent = 'Network limit';
+    card.appendChild(eyebrow);
+
+    const h = document.createElement('h3');
+    h.textContent = 'Free checks from this network are paused';
+    card.appendChild(h);
+
+    const cap = capInfo || {};
+    const resetTxt = resetsInText(cap.resets_at_epoch);
+    const p = document.createElement('p');
+    p.textContent = 'Too many free checks were started from your network today'
+      + (resetTxt ? '. The network limit resets in ' + resetTxt : '')
+      + '. Your own free checks are counted per account, so signing in gets you going again right away.';
+    card.appendChild(p);
+
+    const actions = document.createElement('div');
+    actions.className = 'paywall-actions';
+
+    if (!(S.user && S.user.logged_in)) {
+      const signin = document.createElement('button');
+      signin.type = 'button';
+      signin.className = 'btn btn-primary';
+      signin.textContent = 'Sign in';
+      signin.addEventListener('click', function () { openAuth('login'); });
+      actions.appendChild(signin);
+
+      const create = document.createElement('button');
+      create.type = 'button';
+      create.className = 'btn btn-secondary';
+      create.textContent = 'Create free account';
+      create.addEventListener('click', function () { openAuth('register'); });
+      actions.appendChild(create);
+    }
+
+    if (actions.childNodes.length) card.appendChild(actions);
+    container.appendChild(card);
+    container.hidden = false;
+  }
+
   // ---------------------------------------------------------------- 购买
 
   function trackCheckout(planCode, interval) {
@@ -415,6 +476,9 @@
 
   function authErrorText(status, env) {
     const reason = env && env.msg ? String(env.msg) : '';
+    // 注册日限（服务端闸二）：要如实说"这个网络今天注册太多了"，而不是含糊的"稍后再试"——
+    // 前者用户知道该换网络或明天再来，后者只会让人反复点。
+    if (env && env.code === 'SIGNUP_CAPPED') return 'Too many accounts were created from this network today. Try again tomorrow, or sign in if you already have one.';
     if (status === 409 || reason === 'email_taken') return 'That email is already registered. Sign in instead.';
     if (status === 429 || reason === 'too_many_attempts') return 'Too many attempts. Please wait a few minutes.';
     if (reason === 'invalid_credentials') return 'Email or password is incorrect.';
@@ -478,6 +542,7 @@
     refresh: refresh,
     onQuota: onQuota,
     showPaywall: showPaywall,
+    showNetworkCap: showNetworkCap,
     openAuth: openAuth,
     startCheckout: startCheckout,
     state: S

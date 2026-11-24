@@ -916,6 +916,22 @@
       title = "Check your selections";
       message = "One or more parameters were rejected. Adjust your selections and submit again.";
       canRetry = false;
+    } else if (errCode === "ABUSE_CAPPED") {
+      // 与"额度用尽"分开：这里是**网络**被限（共享出口或有人在刷），登录即可继续。
+      // 合并成一个付费墙就是骗人 —— 用户会以为自己用完了 3 次，其实一次都没用。
+      setView("quota_blocked");
+      title = "Free checks from this network are paused";
+      message = "Sign in to use your own free checks.";
+      canRetry = false;
+      if (window.SolarAccount && typeof window.SolarAccount.showNetworkCap === "function") {
+        const box = document.getElementById("results");
+        if (box) {
+          showResults();
+          window.SolarAccount.showNetworkCap(box, resp.data && resp.data.cap_info);
+          toast("Network limit reached — sign in to keep going.", "error");
+          return; // 不走通用错误卡
+        }
+      }
     } else if (resp.http === 403 || errCode === "QUOTA_BLOCKED") {
       setView("quota_blocked");
       // 额度用尽不是"故障"，是商业边界：给付费墙，不给"稍后重试"。
