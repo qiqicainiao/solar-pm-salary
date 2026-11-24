@@ -1,12 +1,21 @@
 window.SITE_CONFIG = {
   ENV: "prod",
   API_BASE: "",
-  VERSION: "2.0.0",
+  VERSION: "2.1.0",
   SITE_ID: "solar-pm-salary",
   SLUG: "solar-pm-salary",
 
   CHECK_PATH: "/bff/solar-pm-salary/check",
   TRACK_PATH: "/bff/solar-pm-salary/track",
+
+  // 阶段二（2026-11-24）：账号与计费。全部走同源 /bff/ 反代（Pages Function），
+  // 会话 cookie 由该反代转发；直连 API 域在 CF Pages 场景下不可用（跨站 cookie + CORS）。
+  ACCOUNT_ME_PATH: "/bff/solar-pm-salary/account/me",
+  ACCOUNT_LOGIN_PATH: "/bff/solar-pm-salary/account/login",
+  ACCOUNT_REGISTER_PATH: "/bff/solar-pm-salary/account/register",
+  ACCOUNT_LOGOUT_PATH: "/bff/solar-pm-salary/account/logout",
+  BILLING_STATUS_PATH: "/bff/solar-pm-salary/billing/status",
+  BILLING_CHECKOUT_PATH: "/bff/solar-pm-salary/billing/checkout",
 
   SDK_ENDPOINT: (location.origin === "null" ? "" : location.origin) + "/bff/solar-pm-salary/track",
   MANIFEST_URL: (location.origin === "null" ? "" : location.origin) + "/manifests/solar-pm-salary.json",

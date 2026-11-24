@@ -680,3 +680,238 @@
   .submit-row .btn-primary { width: 100%; }
   .cert-premium-table th, .cert-premium-table td { padding: var(--space-3); font-size: var(--font-xs); }
 }
+
+/* ============================================================================
+   阶段二 P2：账号 + 免费额度 + 付费墙（2026-11-24）
+   ----------------------------------------------------------------------------
+   三块 UI 都遵循同一条规矩：**只用服务端给的数字**。
+   前端不做"用一次减一"的本地运算——多标签页、多设备、缓存恢复都会让它错账，
+   而错账的第一个受害者是付费用户。
+   ============================================================================ */
+
+/* ---- 页头账号位 ---- */
+.account-slot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--bg-border);
+  /* min-width:0 + 允许收缩：邮箱是可变长内容，不压住它会把整个导航挤出视口
+     （挤出去之后 position:fixed 的弹层会按被撑宽的文档居中，看起来就是"弹窗偏右被裁"） */
+  min-width: 0;
+  flex-shrink: 1;
+}
+.account-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: var(--font-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.account-link:hover { color: var(--text-primary); text-decoration: underline; }
+.account-who {
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account-badge {
+  font-size: var(--font-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-primary-hover);
+  background: var(--color-primary-soft);
+  border: 1px solid var(--color-blue-200);
+  border-radius: var(--radius-full);
+  padding: 2px 8px;
+}
+
+/* ---- 额度提示行 ---- */
+.quota-line {
+  margin: var(--space-4) 0 0;
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+  text-align: center;
+}
+.quota-line.is-blocked { color: var(--color-error); font-weight: var(--weight-medium); }
+
+/* ---- 账号弹层 ---- */
+body.modal-open { overflow: hidden; }
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
+}
+.modal-backdrop[hidden] { display: none; }
+.modal {
+  position: relative;
+  width: 100%;
+  max-width: min(380px, 100%);
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-dropdown);
+  padding: var(--space-7);
+}
+.modal h3 { margin: 0 0 var(--space-2); font-size: var(--font-xl); }
+.modal-sub {
+  margin: 0 0 var(--space-5);
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.modal-close {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+.modal-close:hover { background: var(--bg-subtle); color: var(--text-primary); }
+.modal label {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-size: var(--font-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-secondary);
+}
+.modal input {
+  width: 100%;
+  min-height: var(--touch-target);
+  padding: 0 var(--space-3);
+  margin-bottom: var(--space-4);
+  border: 1px solid var(--bg-border-strong);
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: var(--font-base);
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+}
+.modal input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-soft);
+}
+.modal .btn { width: 100%; }
+.auth-error {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-sm);
+  color: var(--color-error);
+  background: var(--color-error-bg);
+  border-radius: var(--radius-sm);
+}
+.modal-switch {
+  margin: var(--space-4) 0 0;
+  text-align: center;
+  font-size: var(--font-sm);
+}
+.link-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--color-primary);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* ---- 付费墙 ---- */
+.paywall {
+  margin: var(--space-6) 0;
+  padding: var(--space-7);
+  background: var(--bg-elevated);
+  border: 1px solid var(--bg-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+  text-align: center;
+}
+.paywall-eyebrow {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+}
+.paywall h3 { margin: 0 0 var(--space-3); font-size: var(--font-2xl); }
+.paywall p { color: var(--text-secondary); line-height: 1.6; }
+.paywall-plans {
+  display: flex;
+  gap: var(--space-4);
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: var(--space-6) 0;
+}
+.paywall-plan {
+  flex: 1 1 160px;
+  max-width: 240px;
+  padding: var(--space-5);
+  border: 1px solid var(--bg-border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-page);
+}
+.paywall-plan.is-featured {
+  border-color: var(--color-blue-300);
+  background: var(--color-primary-soft);
+}
+.paywall-plan-name {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-secondary);
+}
+.paywall-plan-price {
+  margin: 0;
+  font-size: var(--font-2xl);
+  font-weight: var(--weight-extrabold);
+  color: var(--text-primary);
+}
+.paywall-plan-note {
+  margin: var(--space-2) 0 0;
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+}
+.paywall-note {
+  margin: var(--space-4) 0 0;
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+}
+.paywall-actions {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: var(--space-5);
+}
+
+@media (max-width: 640px) {
+  /* 窄屏优先保住工具本身：导航只留可点的东西，邮箱与 Pro 徽标让位
+     （Pro 状态在额度行里仍有"Pro — unlimited checks"，信息没有丢） */
+  .site-header nav { gap: var(--space-3); min-width: 0; }
+  .site-header .site-logo a { white-space: nowrap; }
+  .account-slot { gap: var(--space-2); padding-left: var(--space-2); }
+  .account-who,
+  .account-badge { display: none; }
+  .paywall { padding: var(--space-5); }
+  .paywall h3 { font-size: var(--font-xl); }
+  .paywall-plans { gap: var(--space-3); }
+}

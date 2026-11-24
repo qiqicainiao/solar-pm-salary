@@ -5,3 +5,6 @@ dist/
 Thumbs.db
 .workbuddy/
 *.log
+
+# wrangler 本地模拟产物（Node 依赖与缓存）
+.wrangler/

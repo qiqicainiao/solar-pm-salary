@@ -620,6 +620,10 @@
 
       const data = resp.data || {};
       const items = Array.isArray(data.items) ? data.items : [];
+      // 额度以服务端返回为准（含剩余次数与重置时刻）：本地加减会在多标签/多设备下错账
+      if (window.SolarAccount && data.quota_info) {
+        window.SolarAccount.onQuota(data.quota_info);
+      }
       const dimensionCount = new Set(items.map(item => item.dimension).filter(Boolean)).size || (items.length ? 1 : 0);
       const hasPremium = items.some(item => Array.isArray(item.premiums) && item.premiums.length > 0) ||
         !!(data.summary && Array.isArray(data.summary.cert_premiums) && data.summary.cert_premiums.length);
@@ -914,6 +918,21 @@
       canRetry = false;
     } else if (resp.http === 403 || errCode === "QUOTA_BLOCKED") {
       setView("quota_blocked");
+      // 额度用尽不是"故障"，是商业边界：给付费墙，不给"稍后重试"。
+      // 重试按钮在这里是骗人的 —— 再点一百次也不会通过，只会让人更烦。
+      const quota = resp.quota_info || (resp.data && resp.data.quota_info) || null;
+      if (window.SolarAccount) {
+        if (quota) window.SolarAccount.onQuota(quota);
+        if (typeof window.SolarAccount.showPaywall === "function") {
+          const box = document.getElementById("results");
+          if (box) {
+            showResults();
+            window.SolarAccount.showPaywall(box);
+            toast("Daily free limit reached.", "error");
+            return; // 不走通用错误卡
+          }
+        }
+      }
       title = "Free quota exhausted";
       message = "The server reports that the free quota is exhausted. Please try again later.";
       canRetry = false;
