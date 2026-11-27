@@ -157,7 +157,10 @@
   }
 
   function isPro() {
-    if (S.billing && S.billing.paid === true) return true;
+    // 有 billing/status 就以它为准，不要再用 quota 兜底 —— 两个字段来自同一份服务端数据，
+    // 混着判会在"订阅已失效但额度快照还没刷新"时把免费用户显示成 Pro（假绿比假红更贵：
+    // 他以为有权限，点下去 403）。只有状态接口整个拿不到时才退回额度里的 plan。
+    if (S.billing) return S.billing.paid === true;
     if (S.quota && S.quota.plan === 'pro') return true;
     return false;
   }
