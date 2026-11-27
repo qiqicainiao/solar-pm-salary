@@ -22,9 +22,14 @@ const DEFAULT_API_ORIGIN = 'https://api.guomeijiayu.com';
    /bff/li-resume-check/check through another site's domain and drain its free quota. */
 const ALLOWED_SITE_SLUG = 'solar-pm-salary';
 
-/* Read-only endpoints (account session + billing status) must be GET.
-   Everything else stays POST-only: a GET must never be able to spend quota. */
-const GET_PATHS = new Set(['account/me', 'billing/status']);
+/* Read-only endpoints (account session + billing status + key listing) must be GET.
+   Everything else stays POST-only: a GET must never be able to spend quota.
+
+   2026-11-27: `account/api-keys` was missing here and the Pro panel showed an empty
+   key list forever (proxy answered 405 with an empty body, so the page looked merely
+   "slow"). Listing keys is read-only — creating (POST) and revoking (POST) still pass
+   through the generic POST path. */
+const GET_PATHS = new Set(['account/me', 'billing/status', 'account/api-keys']);
 
 /* Cookie allowlist. Two reasons to filter instead of passing everything through:
    1) privacy — analytics/third-party cookies on this origin have no business reaching the API;
