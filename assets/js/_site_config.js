@@ -19,19 +19,9 @@ window.SITE_CONFIG = {
 
   CHECK_PATH: "/bff/solar-pm-salary/check",
 
-  // 阶段二（2026-11-24）：账号与计费。全部走同源 /bff/ 反代（Pages Function），
-  // 会话 cookie 由该反代转发；直连 API 域在 CF Pages 场景下不可用（跨站 cookie + CORS）。
-  ACCOUNT_ME_PATH: "/bff/solar-pm-salary/account/me",
-  ACCOUNT_LOGIN_PATH: "/bff/solar-pm-salary/account/login",
-  ACCOUNT_REGISTER_PATH: "/bff/solar-pm-salary/account/register",
-  ACCOUNT_LOGOUT_PATH: "/bff/solar-pm-salary/account/logout",
-  BILLING_STATUS_PATH: "/bff/solar-pm-salary/billing/status",
-  BILLING_CHECKOUT_PATH: "/bff/solar-pm-salary/billing/checkout",
-
-  // Pro 面板（2026-11-27）：定价页承诺"issues an API key"，就必须真有地方签发。
-  // 同一路径 GET 列表 / POST 创建（后端按方法分发），撤销单独一条。
-  ACCOUNT_API_KEYS_PATH: "/bff/solar-pm-salary/account/api-keys",
-  ACCOUNT_API_KEYS_REVOKE_PATH: "/bff/solar-pm-salary/account/api-keys/revoke",
+  // 账号与计费的路径**不在这里**：2026-11-27 起由 account.js 从自己的 script 标签
+  // `data-account-site` 推出 `/bff/{site}/...`。九站各有一份 _site_config.js 且对象名
+  // 不同（SITE_CONFIG / __SITE_CONFIG__ / ...），把路径放这里就会有一半站取不到。
 
   ENUMS: {
     experience_bucket: ["0-2", "3-5", "6plus"],

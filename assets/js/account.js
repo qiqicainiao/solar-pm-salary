@@ -17,7 +17,87 @@
  *     所以这里一律 `credentials: 'same-origin'`，不跨域。
  */
 (function () {
-  const CFG = window.SITE_CONFIG;
+  /* 站点身份只从「加载本文件的那个 script 标签」读（`data-account-site`）。
+   *
+   * 九站各有一份 `_site_config.js`，但里面挂的对象名各不相同（`SITE_CONFIG` /
+   * `__SITE_CONFIG__` / 各自自定义），从配置对象取站点名会有一半站打空 —— 而打空的
+   * 表现是所有 `/bff//account/me` 变成 404、页头永远显示 "Sign in"，看起来像"没登录"。
+   * script 标签自己一定在（否则这份代码不会执行），所以它是最可靠的来源。
+   *
+   * 回退顺序：本标签 → 遥测 SDK 标签的 data-vr-site → window.VR_SITE_ID。
+   */
+  function resolveSiteId() {
+    try {
+      var own = document.currentScript || document.querySelector('script[data-account-site]');
+      if (own && own.getAttribute) {
+        var v = own.getAttribute('data-account-site');
+        if (v) return v;
+      }
+      var vr = document.querySelector('script[data-vr-site]');
+      if (vr && vr.getAttribute('data-vr-site')) return vr.getAttribute('data-vr-site');
+      if (window.VR_SITE_ID) return String(window.VR_SITE_ID);
+    } catch (e) { /* 老浏览器：走下面的告警分支 */ }
+    return '';
+  }
+
+  var SITE_ID = resolveSiteId();
+
+  /** 同源 /bff/ 路径：唯一来源是站点名，不允许各页面自己拼 */
+  function api(action) {
+    return '/bff/' + SITE_ID + '/' + action;
+  }
+
+  /**
+   * 可覆盖文案。默认英文（与 solarpmlab 的成品一致），中文站/双语站在自己的页面里
+   * 先设 `window.VR_ACCOUNT_TEXT = { sign_in: '登录', ... }` 再加载本文件即可，
+   * 不需要把这份实现复制成九份各自翻译的副本（九份必然漂移）。
+   */
+  var TEXT = Object.assign({
+    sign_in: 'Sign in',
+    sign_out: 'Sign out',
+    account_title: 'Your account',
+    your_account: 'Your account',
+    member_since: 'member since',
+    guest_title: 'Sign in to see your account',
+    guest_body: 'Plan status, renewal date and API keys belong to the account you are signed in with — there is nothing to show until you sign in.',
+    create_account: 'Create account',
+    free_plan: 'Free plan',
+    pro_badge: 'Pro',
+    free_badge: 'Free',
+    upgrade: 'Upgrade to Pro',
+    plan_unavailable: 'Plan unavailable',
+    plan_unread: 'We could not read your subscription just now. Reload this page.',
+    pro_until: 'Active until',
+    pro_line: 'Unlimited checks, CSV export and 1,000 API calls per day.',
+    free_includes: 'Includes %d salary lookups per day, no card needed.',
+    pro_line: 'Unlimited checks, CSV export and 1,000 API calls per day.',
+    not_on_sale: 'Pro is not on sale yet — checkout opens soon.',
+    loading: 'Loading your account…',
+    email_label: 'Email',
+    password_label: 'Password',
+    auth_sub_login: 'Your checks and Pro plan are tied to this account.',
+    auth_sub_register: 'One account for your checks and your Pro plan.',
+    auth_switch_to_register: 'New here? Create an account',
+    auth_switch_to_login: 'Already have an account? Sign in',
+    signed_in: 'Signed in.',
+    account_created: 'Account created.',
+    signed_out: 'Signed out.'
+  }, window.VR_ACCOUNT_TEXT || {});
+
+  /** 只支持 %d / %s：文案表里出现别的占位符就是拼错了，别用模板字符串硬拼 */
+  function fmt(tpl, values) {
+    return String(tpl).replace(/%[ds]/g, function (m) {
+      var v = values.shift();
+      return v === undefined || v === null ? '' : String(v);
+    });
+  }
+
+  if (!SITE_ID) {
+    // 页面忘了写 data-account-site：不静默降级（否则表现为"登录了但永远是 Sign in"）
+    if (window.console && console.error) {
+      console.error('[account] 缺少 data-account-site：<script src=".../account.js" data-account-site="{site_id}"></script>');
+    }
+  }
 
   const S = {
     booted: false,
@@ -210,7 +290,7 @@
   // ---------------------------------------------------------------- 数据
 
   async function loadMe() {
-    const res = await req(CFG.ACCOUNT_ME_PATH);
+    const res = await req(api('account/me'));
     if (bizOk(res) && res.env.data) {
       S.user = res.env.data;
     } else if (res.status === 404) {
@@ -222,7 +302,7 @@
   }
 
   async function loadStatus() {
-    const res = await req(CFG.BILLING_STATUS_PATH);
+    const res = await req(api('billing/status'));
     if (!bizOk(res) || !res.env.data) {
       // 拿不到计费状态时**不显示任何"升级"入口**：宁可少一个 CTA，
       // 也不要让人点了之后才发现买不了。
@@ -277,7 +357,7 @@
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'account-link';
-      btn.textContent = 'Sign in';
+      btn.textContent = TEXT.sign_in;
       btn.addEventListener('click', function () { openAuth('login'); });
       slot.appendChild(btn);
       return;
@@ -288,23 +368,23 @@
     const who = document.createElement('a');
     who.className = 'account-who';
     who.href = ACCOUNT_PAGE;
-    who.title = 'Your account';
-    who.textContent = (S.user && S.user.email_masked) ? S.user.email_masked : 'Signed in';
+    who.title = TEXT.your_account;
+    who.textContent = (S.user && S.user.email_masked) ? S.user.email_masked : TEXT.sign_in;
     slot.appendChild(who);
 
     if (isPro()) {
       const badge = document.createElement('a');
       badge.className = 'account-badge';
       badge.href = ACCOUNT_PAGE;
-      badge.title = 'Your account — Pro';
-      badge.textContent = 'Pro';
+      badge.title = TEXT.your_account + ' — ' + TEXT.pro_badge;
+      badge.textContent = TEXT.pro_badge;
       slot.appendChild(badge);
     }
 
     const out = document.createElement('button');
     out.type = 'button';
     out.className = 'account-link';
-    out.textContent = 'Sign out';
+    out.textContent = TEXT.sign_out;
     out.addEventListener('click', signOut);
     slot.appendChild(out);
   }
@@ -390,7 +470,7 @@
 
     if (!S.billing) {
       if (badge) badge.hidden = true;
-      if (name) name.textContent = 'Plan unavailable';
+      if (name) name.textContent = TEXT.plan_unavailable;
       if (line) line.textContent = 'We could not read your subscription just now. Reload this page — '
         + 'if it keeps failing, email 269715607@qq.com.';
       if (quota) quota.hidden = true;
@@ -402,16 +482,16 @@
     const paid = S.billing.paid === true;
     if (badge) {
       badge.hidden = false;
-      badge.textContent = paid ? 'Pro' : 'Free';
+      badge.textContent = paid ? TEXT.pro_badge : TEXT.free_badge;
       badge.classList.toggle('is-free', !paid);
     }
-    if (name) name.textContent = paid ? planName(S.billing.plan || '') : 'Free plan';
+    if (name) name.textContent = paid ? planName(S.billing.plan || '') : TEXT.free_plan;
 
     if (paid) {
       const until = fmtYmd(S.billing.current_period_end);
       if (line) {
-        line.textContent = (until ? 'Active until ' + until + '. ' : 'Active. ')
-          + 'Unlimited checks, CSV export and 1,000 API calls per day.';
+        line.textContent = (until ? TEXT.pro_until + ' ' + until + '. ' : '')
+          + TEXT.pro_line;
       }
       // 付费档不显示"还剩 N 次"：那是免费额度，混在一起看会以为 Pro 也有上限
       if (quota) quota.hidden = true;
@@ -422,9 +502,7 @@
 
     const daily = S.billing.free_quota_daily;
     if (line) {
-      line.textContent = daily
-        ? 'Includes ' + daily + ' salary lookups per day, no card needed.'
-        : 'The free plan includes a few salary lookups per day, no card needed.';
+      line.textContent = daily ? fmt(TEXT.free_includes, [daily]) : TEXT.free_plan;
     }
     const qTxt = freeQuotaText(S.quota);
     if (quota) {
@@ -608,7 +686,7 @@
     if (!plan) return;
 
     S.busy = true;
-    const res = await req(CFG.BILLING_CHECKOUT_PATH, { body: { plan: planCode } });
+    const res = await req(api('billing/checkout'), { body: { plan: planCode } });
     S.busy = false;
 
     if (bizOk(res)) {
@@ -673,10 +751,10 @@
     const submit = $('auth-submit');
     const sw = $('auth-switch');
     const pw = $('auth-password');
-    if (title) title.textContent = isLogin ? 'Sign in' : 'Create account';
-    if (sub) sub.textContent = isLogin ? 'Your checks and Pro plan are tied to this account.' : 'One account for your checks and your Pro plan.';
-    if (submit) submit.textContent = isLogin ? 'Sign in' : 'Create account';
-    if (sw) sw.textContent = isLogin ? 'New here? Create an account' : 'Already have an account? Sign in';
+    if (title) title.textContent = isLogin ? TEXT.sign_in : TEXT.create_account;
+    if (sub) sub.textContent = isLogin ? TEXT.auth_sub_login : TEXT.auth_sub_register;
+    if (submit) submit.textContent = isLogin ? TEXT.sign_in : TEXT.create_account;
+    if (sw) sw.textContent = isLogin ? TEXT.auth_switch_to_register : TEXT.auth_switch_to_login;
     if (pw) pw.setAttribute('autocomplete', isLogin ? 'current-password' : 'new-password');
     setAuthError('');
   }
@@ -717,7 +795,7 @@
     const submit = $('auth-submit');
     if (submit) submit.disabled = true;
 
-    const url = S.authMode === 'login' ? CFG.ACCOUNT_LOGIN_PATH : CFG.ACCOUNT_REGISTER_PATH;
+    const url = S.authMode === 'login' ? api('account/login') : api('account/register');
     const res = await req(url, { body: { email: email, password: password } });
 
     S.busy = false;
@@ -726,7 +804,7 @@
     if (bizOk(res)) {
       closeAuth();
       await refresh();
-      toast(S.authMode === 'login' ? 'Signed in.' : 'Account created.', 'ok');
+      toast(S.authMode === 'login' ? TEXT.signed_in : TEXT.account_created, 'ok');
       const form = $('auth-form');
       if (form) form.reset();
       // 从付款页回跳后引导登录的人：登录完成就该看到"已开通"，而不是停在"请登录"
@@ -739,13 +817,13 @@
   }
 
   async function signOut() {
-    await req(CFG.ACCOUNT_LOGOUT_PATH, { body: {} });
+    await req(api('account/logout'), { body: {} });
     keysLoaded = false;
     const secretBox = $('api-key-secret');
     if (secretBox) secretBox.hidden = true;
     banner('', 'info');
     await refresh();
-    toast('Signed out.', 'ok');
+    toast(TEXT.signed_out, 'ok');
   }
 
   /** app.js 在每次 check 成功后把新的额度状态交过来（服务端算的，不用本地加减） */
@@ -860,7 +938,7 @@
   async function loadKeys() {
     const list = $('api-key-list');
     if (!list) return;
-    const res = await req(CFG.ACCOUNT_API_KEYS_PATH);
+    const res = await req(api('account/api-keys'));
     list.textContent = '';
 
     if (!bizOk(res)) {
@@ -913,7 +991,7 @@
     if (S.busy) return;
     S.busy = true;
     if (btn) btn.disabled = true;
-    const res = await req(CFG.ACCOUNT_API_KEYS_REVOKE_PATH, { body: { key_id: keyId } });
+    const res = await req(api('account/api-keys/revoke'), { body: { key_id: keyId } });
     S.busy = false;
     if (bizOk(res)) {
       toast('API key revoked.', 'ok');
@@ -927,7 +1005,7 @@
   async function createKey() {
     if (S.busy) return;
     S.busy = true;
-    const res = await req(CFG.ACCOUNT_API_KEYS_PATH, { body: { label: 'dashboard' } });
+    const res = await req(api('account/api-keys'), { body: { label: 'dashboard' } });
     S.busy = false;
 
     if (!bizOk(res)) {
@@ -980,7 +1058,7 @@
 
   // ---------------------------------------------------------------- 对外
 
-  window.SolarAccount = {
+  window.VRAccount = {
     boot: boot,
     refresh: refresh,
     onQuota: onQuota,
@@ -992,6 +1070,9 @@
     createKey: createKey,
     state: S
   };
+
+  // 旧名保留一个版本，免得已上线的 app.js 立刻断；下一轮统一删。
+  window.SolarAccount = window.VRAccount;
 
   window.addEventListener('load', function () {
     // 表单已就绪后再拉会话：避免 POST 抢在 cookie 之前
