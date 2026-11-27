@@ -32,6 +32,39 @@
 
   const $ = (id) => document.getElementById(id);
 
+  /**
+   * `/pricing` 的 "Subscribe" 链接带 `?plan=pro_monthly` 过来。
+   * 读一次就够：登录成功后要接着进 checkout，不能因为 URL 没变就重复触发。
+   */
+  let consumedPlan = '';
+
+  function pendingPlan() {
+    if (consumedPlan) return '';
+    try {
+      const p = new URLSearchParams(window.location.search).get('plan') || '';
+      return /^pro_(monthly|yearly)$/.test(p) ? p : '';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  /** 从定价页过来的人只差一步：已登录就进 checkout，未登录先让他注册 */
+  async function resumePendingPlan() {
+    const plan = pendingPlan();
+    if (!plan) return;
+    if (S.user && S.user.logged_in) {
+      consumedPlan = plan;
+      await startCheckout(plan);
+      return;
+    }
+    if (S.purchasable) {
+      openAuth('register');
+    } else {
+      // 渠道没开户时不说"请稍后"，直接说事实（与卡片上的文案一致）
+      toast('Pro is not on sale yet. We are opening checkout soon.', 'info');
+    }
+  }
+
   // ---------------------------------------------------------------- 基础
 
   function toast(msg, kind) {
@@ -156,6 +189,7 @@
     S.booted = true;
     await Promise.all([loadMe(), loadStatus()]);
     renderAll();
+    await resumePendingPlan();
   }
 
   async function refresh() {
@@ -519,6 +553,8 @@
       toast(S.authMode === 'login' ? 'Signed in.' : 'Account created.', 'ok');
       const form = $('auth-form');
       if (form) form.reset();
+      // 从 /pricing 点 "Subscribe" 过来的：登录完直接进 checkout，不再让他找一遍按钮
+      await resumePendingPlan();
       return;
     }
     setAuthError(authErrorText(res.status, res.env));

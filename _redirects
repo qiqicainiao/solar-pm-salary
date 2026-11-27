@@ -1,2 +1,6 @@
 # www -> apex (canonical host is https://solarpmlab.com, see <link rel="canonical">)
 https://www.solarpmlab.com/*  https://solarpmlab.com/:splat  301!
+
+# 审核员会先试 /privacy（真实页面是 /solar-pm-salary-privacy）
+/privacy            /solar-pm-salary-privacy            301
+/privacy-policy     /solar-pm-salary-privacy            301
