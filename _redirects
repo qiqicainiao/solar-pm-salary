@@ -5,6 +5,6 @@ https://www.solarpmlab.com/*  https://solarpmlab.com/:splat  301!
 /privacy            /solar-pm-salary-privacy            301
 /privacy-policy     /solar-pm-salary-privacy            301
 
-# 账号页（私有，仅登录会员有内容）：CF Pages 的 clean URL 本来就能服务 /account，
-# 这里显式写一条，让"付款回跳的落点"在 _redirects 里能查到。
-/account            /account.html           200
+# 账号页 /account 不需要规则：CF Pages 的 clean URL 会自动把 account.html 服务在 /account。
+# 2026-11-27 实测：写 `/account /account.html 200` 会变成 308 Location: /account（自跳循环），
+# 因为 Pages 同时在做 .html → 无扩展名的规范化。别再加回来。
