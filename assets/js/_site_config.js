@@ -13,7 +13,7 @@
 window.SITE_CONFIG = {
   ENV: "prod",
   API_BASE: "",
-  VERSION: "2.3.2",
+  VERSION: "2.4.0",
   SITE_ID: "solar-pm-salary",
   SLUG: "solar-pm-salary",
 
@@ -27,6 +27,11 @@ window.SITE_CONFIG = {
   ACCOUNT_LOGOUT_PATH: "/bff/solar-pm-salary/account/logout",
   BILLING_STATUS_PATH: "/bff/solar-pm-salary/billing/status",
   BILLING_CHECKOUT_PATH: "/bff/solar-pm-salary/billing/checkout",
+
+  // Pro 面板（2026-11-27）：定价页承诺"issues an API key"，就必须真有地方签发。
+  // 同一路径 GET 列表 / POST 创建（后端按方法分发），撤销单独一条。
+  ACCOUNT_API_KEYS_PATH: "/bff/solar-pm-salary/account/api-keys",
+  ACCOUNT_API_KEYS_REVOKE_PATH: "/bff/solar-pm-salary/account/api-keys/revoke",
 
   ENUMS: {
     experience_bucket: ["0-2", "3-5", "6plus"],

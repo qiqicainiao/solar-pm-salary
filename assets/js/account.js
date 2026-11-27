@@ -38,6 +38,23 @@
    */
   let consumedPlan = '';
 
+  /**
+   * `?paid=1` 回跳后的轮询状态。
+   *
+   * 渠道回跳只带一个标记，**不是付款证据**（谁都能手工加）；真正算数的是
+   * `billing/status` 的 `paid`，而它由 webhook 落库后才变。webhook 通常 1–5 秒到，
+   * 慢的时候十几秒 —— 不等它，用户就会停在"钱扣了、页面还显示 Free"这一屏然后来问。
+   */
+  const PAID_POLL = { attempts: 0, max: 20, everyMs: 3000, timer: null };
+
+  function queryFlag(name) {
+    try {
+      return new URLSearchParams(window.location.search).get(name) === '1';
+    } catch (e) {
+      return false;
+    }
+  }
+
   function pendingPlan() {
     if (consumedPlan) return '';
     try {
@@ -52,6 +69,13 @@
   async function resumePendingPlan() {
     const plan = pendingPlan();
     if (!plan) return;
+    // 已经 Pro 的人不要再进结账页：后端会 409，但让他一路点到付款页再被弹回，
+    // 观感是"这站在坑我钱"。如实说清楚，并把 URL 参数吃掉，避免刷新重复触发。
+    if (isPro()) {
+      consumedPlan = plan;
+      toast('You already have Pro — nothing was charged.', 'info');
+      return;
+    }
     if (S.user && S.user.logged_in) {
       consumedPlan = plan;
       await startCheckout(plan);
@@ -189,6 +213,8 @@
     S.booted = true;
     await Promise.all([loadMe(), loadStatus()]);
     renderAll();
+    if (queryFlag('signin') && !(S.user && S.user.logged_in)) openAuth('login');
+    await handlePaidReturn();
     await resumePendingPlan();
   }
 
@@ -202,6 +228,7 @@
   function renderAll() {
     renderSlot();
     renderQuota();
+    renderProPanel();
   }
 
   function renderSlot() {
@@ -457,6 +484,16 @@
       return;
     }
 
+    if (res.status === 409) {
+      // 服务端说"你已经订阅了"：这可能来自旧标签页、收藏的 /?plan= 链接、或连点两次。
+      // 先把状态刷新成真的再说话，别让界面继续显示"可购买"。
+      await refresh();
+      const d = (res.env && res.env.data) || {};
+      const until = d.current_period_end ? fmtYmd(d.current_period_end) : '';
+      toast('You already have Pro' + (until ? ' until ' + until : '') + '. Nothing was charged.', 'info');
+      return;
+    }
+
     if (res.status === 503) {
       // 渠道没配 / 报文翻译没实现：把状态同步下来，别让按钮继续骗人
       S.purchasable = false;
@@ -553,6 +590,8 @@
       toast(S.authMode === 'login' ? 'Signed in.' : 'Account created.', 'ok');
       const form = $('auth-form');
       if (form) form.reset();
+      // 从付款页回跳后引导登录的人：登录完成就该看到"已开通"，而不是停在"请登录"
+      await handlePaidReturn();
       // 从 /pricing 点 "Subscribe" 过来的：登录完直接进 checkout，不再让他找一遍按钮
       await resumePendingPlan();
       return;
@@ -562,6 +601,10 @@
 
   async function signOut() {
     await req(CFG.ACCOUNT_LOGOUT_PATH, { body: {} });
+    keysLoaded = false;
+    const secretBox = $('api-key-secret');
+    if (secretBox) secretBox.hidden = true;
+    banner('', 'info');
     await refresh();
     toast('Signed out.', 'ok');
   }
@@ -575,6 +618,234 @@
     renderSlot();
   }
 
+  // ---------------------------------------------------------------- 付款回跳
+
+  const BANNER_STYLE = {
+    ok: 'max-width:760px;margin:16px auto 0;padding:12px 16px;border:1px solid #bfe3c8;background:#effaf1;color:#175c2b;border-radius:10px;font-size:.95rem;line-height:1.5;',
+    info: 'max-width:760px;margin:16px auto 0;padding:12px 16px;border:1px solid #c7d7f5;background:#f2f6ff;color:#1e3a8a;border-radius:10px;font-size:.95rem;line-height:1.5;',
+    warn: 'max-width:760px;margin:16px auto 0;padding:12px 16px;border:1px solid #f3d6a0;background:#fdf7ec;color:#7a4a06;border-radius:10px;font-size:.95rem;line-height:1.5;'
+  };
+
+  function banner(text, kind) {
+    const box = $('paid-banner');
+    if (!box) return;
+    box.textContent = '';
+    if (!text) {
+      box.hidden = true;
+      return;
+    }
+    box.style.cssText = BANNER_STYLE[kind] || BANNER_STYLE.info;
+    box.textContent = text;
+    box.hidden = false;
+  }
+
+  function paidActiveText() {
+    const until = (S.billing && S.billing.current_period_end) ? fmtYmd(S.billing.current_period_end) : '';
+    return 'Pro is active' + (until ? ' until ' + until : '')
+      + '. Unlimited checks, CSV export and API access are on.';
+  }
+
+  /** 确认已开通后把 ?paid=1 摘掉：留着它，刷新一次就重放一遍提示，像在反复邀功 */
+  function clearPaidParam() {
+    if (PAID_POLL.timer) {
+      clearTimeout(PAID_POLL.timer);
+      PAID_POLL.timer = null;
+    }
+    try {
+      const p = new URLSearchParams(window.location.search);
+      p.delete('paid');
+      const q = p.toString();
+      window.history.replaceState(null, '', window.location.pathname + (q ? '?' + q : ''));
+    } catch (e) {
+      // 老浏览器没有 replaceState：参数留着只影响观感，不影响权限判断
+    }
+  }
+
+  async function handlePaidReturn() {
+    if (!queryFlag('paid')) return;
+    if (isPro()) {
+      banner(paidActiveText(), 'ok');
+      clearPaidParam();
+      return;
+    }
+    if (!(S.user && S.user.logged_in)) {
+      // 没登录时无从判断是谁付的款：只提示去登录，绝不宣告"已收到"
+      banner('Payment received. Sign in with the email you used at checkout to unlock Pro.', 'info');
+      return;
+    }
+    banner('Payment received. Activating Pro — this page updates by itself.', 'info');
+    PAID_POLL.attempts = 0;
+    pollPaid();
+  }
+
+  function pollPaid() {
+    if (PAID_POLL.attempts >= PAID_POLL.max) {
+      banner('Payment received, but Pro has not switched on yet. Wait a couple of minutes and reload — '
+        + 'if it still shows Free, email 269715607@qq.com with your receipt number.', 'warn');
+      return;
+    }
+    PAID_POLL.attempts += 1;
+    PAID_POLL.timer = setTimeout(async function () {
+      await loadStatus();
+      renderAll();
+      if (isPro()) {
+        banner(paidActiveText(), 'ok');
+        clearPaidParam();
+        return;
+      }
+      pollPaid();
+    }, PAID_POLL.everyMs);
+  }
+
+  // ---------------------------------------------------------------- Pro 面板
+
+  /** key 列表只自动拉一次：每次 onQuota 都发请求会把限流额度浪费在刷新自己上 */
+  let keysLoaded = false;
+
+  function renderProPanel() {
+    const panel = $('pro-panel');
+    if (!panel) return;
+    if (!(S.user && S.user.logged_in) || !isPro()) {
+      panel.hidden = true;
+      return;
+    }
+    panel.hidden = false;
+
+    const sum = $('pro-summary');
+    if (sum) {
+      const code = S.billing && S.billing.plan ? S.billing.plan : '';
+      const name = code ? planName(code) : 'Pro';
+      const until = S.billing ? fmtYmd(S.billing.current_period_end) : '';
+      sum.textContent = name + (until ? ' · active until ' + until : '')
+        + ' · unlimited checks, CSV export and ' + '1,000 API calls per day.';
+    }
+    if (!keysLoaded) {
+      keysLoaded = true;
+      loadKeys();
+    }
+  }
+
+  async function loadKeys() {
+    const list = $('api-key-list');
+    if (!list) return;
+    const res = await req(CFG.ACCOUNT_API_KEYS_PATH);
+    list.textContent = '';
+
+    if (!bizOk(res)) {
+      list.appendChild(note('Could not load your API keys. Reload the page to retry.'));
+      return;
+    }
+    const keys = ((res.env.data || {}).keys) || [];
+    const live = keys.filter(function (k) { return !k.revoked_at; });
+    if (!live.length) {
+      list.appendChild(note('No API key yet. Create one to call the estimate endpoint from your own scripts.'));
+      return;
+    }
+    live.forEach(function (k) { list.appendChild(keyRow(k)); });
+  }
+
+  function note(text) {
+    const p = document.createElement('p');
+    p.style.cssText = 'margin:0 0 .5rem;color:#6b7280;font-size:.9rem';
+    p.textContent = text;
+    return p;
+  }
+
+  function keyRow(k) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;'
+      + 'padding:.5rem 0;border-top:1px solid #f1f2f4';
+
+    const name = document.createElement('code');
+    name.textContent = String(k.key_prefix || '') + '…';
+    row.appendChild(name);
+
+    const meta = document.createElement('span');
+    meta.style.cssText = 'color:#6b7280;font-size:.86rem;flex:1 1 220px';
+    meta.textContent = (k.label ? k.label + ' · ' : '')
+      + 'created ' + (fmtYmd(k.created_at) || '—')
+      + (k.last_used_at ? ' · last used ' + fmtYmd(k.last_used_at) : ' · never used');
+    row.appendChild(meta);
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-secondary';
+    btn.textContent = 'Revoke';
+    btn.addEventListener('click', function () { revokeKey(k.key_id, btn); });
+    row.appendChild(btn);
+
+    return row;
+  }
+
+  async function revokeKey(keyId, btn) {
+    if (S.busy) return;
+    S.busy = true;
+    if (btn) btn.disabled = true;
+    const res = await req(CFG.ACCOUNT_API_KEYS_REVOKE_PATH, { body: { key_id: keyId } });
+    S.busy = false;
+    if (bizOk(res)) {
+      toast('API key revoked.', 'ok');
+      await loadKeys();
+      return;
+    }
+    if (btn) btn.disabled = false;
+    toast('Could not revoke that key. Please retry.', 'error');
+  }
+
+  async function createKey() {
+    if (S.busy) return;
+    S.busy = true;
+    const res = await req(CFG.ACCOUNT_API_KEYS_PATH, { body: { label: 'dashboard' } });
+    S.busy = false;
+
+    if (!bizOk(res)) {
+      toast('Could not create an API key. Please retry.', 'error');
+      return;
+    }
+
+    const secret = (((res.env.data || {}).key) || {}).secret || '';
+    const box = $('api-key-secret');
+    if (box && secret) {
+      box.textContent = '';
+      box.style.cssText = 'margin-top:.8rem;padding:12px 14px;border:1px solid #f3d6a0;'
+        + 'background:#fdf7ec;border-radius:10px;color:#7a4a06;font-size:.9rem';
+
+      const warn = document.createElement('p');
+      warn.style.cssText = 'margin:0 0 .5rem';
+      warn.textContent = 'Copy this key now — it is shown once and cannot be retrieved later.';
+      box.appendChild(warn);
+
+      const code = document.createElement('code');
+      code.style.cssText = 'display:block;word-break:break-all;background:#fff;padding:8px 10px;'
+        + 'border-radius:6px;border:1px solid #eadfc8;color:#111';
+      code.textContent = secret;
+      box.appendChild(code);
+
+      const copy = document.createElement('button');
+      copy.type = 'button';
+      copy.className = 'btn btn-secondary';
+      copy.style.cssText = 'margin-top:.6rem';
+      copy.textContent = 'Copy key';
+      copy.addEventListener('click', function () {
+        copyText(secret).then(function (ok) {
+          toast(ok ? 'Key copied.' : 'Select the key above and copy it manually.', ok ? 'ok' : 'error');
+        });
+      });
+      box.appendChild(copy);
+
+      box.hidden = false;
+    }
+
+    await loadKeys();
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text).then(function () { return true; }, function () { return false; });
+    }
+    return Promise.resolve(false);
+  }
+
   // ---------------------------------------------------------------- 对外
 
   window.SolarAccount = {
@@ -585,6 +856,8 @@
     showNetworkCap: showNetworkCap,
     openAuth: openAuth,
     startCheckout: startCheckout,
+    isPro: isPro,
+    createKey: createKey,
     state: S
   };
 
@@ -612,6 +885,9 @@
         if (e.target === modal) closeAuth();
       });
     }
+
+    const createBtn = $('api-key-create');
+    if (createBtn) createBtn.addEventListener('click', createKey);
 
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') closeAuth();

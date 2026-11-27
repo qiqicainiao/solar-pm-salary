@@ -118,6 +118,8 @@
   </header>
 
   <main>
+    <!-- 付款回跳提示：文案与显示时机全由 account.js 依据 billing/status 决定（?paid=1 只是线索，不是证据） -->
+    <div id="paid-banner" role="status" aria-live="polite" hidden></div>
     <!-- Hero -->
     <section class="hero">
       <div class="container">
@@ -188,6 +190,26 @@
 
       <section class="results-section" id="results" aria-live="polite" aria-label="Salary results"></section>
 
+      <!-- Pro 面板：只在「已登录 + 有效订阅」时由 account.js 显示（默认 hidden，不占位）。
+           定价页承诺了 API key，就必须有签发入口 —— 否则是"收钱不交付"。 -->
+      <section id="pro-panel" aria-label="Your Pro access" hidden
+               style="margin-top:var(--space-8);padding:18px 20px;border:1px solid #e5e7eb;border-radius:14px;background:#fff">
+        <h2 style="margin:0 0 .4rem;font-size:1.25rem">Your Pro access</h2>
+        <p id="pro-summary" style="margin:0 0 .8rem;color:var(--text-muted)"></p>
+        <h3 style="margin:.6rem 0 .3rem;font-size:1.02rem">API access</h3>
+        <p style="margin:0 0 .6rem;color:var(--text-muted);font-size:.92rem">
+          POST <code>https://api.guomeijiayu.com/solar-pm-salary/v1/estimate</code> with
+          <code>Authorization: Bearer &lt;your key&gt;</code> and the same JSON body as the form
+          (<code>state</code>, <code>experience</code>, <code>certification</code>, <code>segment</code>).
+          1,000 calls per day.
+        </p>
+        <div id="api-key-list"></div>
+        <p style="margin:.8rem 0 0">
+          <button type="button" class="btn btn-secondary" id="api-key-create">Create API key</button>
+        </p>
+        <div id="api-key-secret" hidden></div>
+      </section>
+
       <article class="thick-content">
         <h2>How to Use This Calculator</h2>
         <p>Select your state, experience band, primary certification, and market segment. Stack additional certifications to see combined premium estimates. The calculator returns P25, median, and P75 annual salary ranges based on 2026 BLS OEWS and H-1B LCA benchmarks.</p>
@@ -253,28 +275,9 @@
     </div>
   </div>
 
-  <script src="assets/js/_site_config.js?v=2.3.2"></script>
+  <script src="assets/js/_site_config.js?v=2.4.0"></script>
   <script src="assets/js/api.js?v=2.0.0"></script>
-  <script src="assets/js/account.js?v=2.3.2"></script>
-  <script src="assets/js/solar-pm-salary-app.js?v=2.3.1"></script>
-  <!-- Creem 结账回跳：后端把 success_url 指到 /?paid=1，这里给出付款已收到的确认。
-       只认 URL 参数，不改会话状态（状态由 account.js 向 /bff 查，避免"前端自说自话"). -->
-  <script>
-    (function () {
-      try {
-        if (new URLSearchParams(location.search).get('paid') !== '1') return;
-        var box = document.createElement('div');
-        box.setAttribute('role', 'status');
-        box.style.cssText = 'max-width:760px;margin:16px auto 0;padding:12px 16px;'
-          + 'border:1px solid #bfe3c8;background:#effaf1;color:#175c2b;border-radius:10px;'
-          + 'font-size:.95rem;line-height:1.5;';
-        box.innerHTML = '<strong>Payment received.</strong> Sign in with the email you used at checkout — '
-          + 'Pro unlocks as soon as Creem confirms it (usually under a minute). '
-          + 'If you were already signed in, reload this page after a minute.';
-        var host = document.querySelector('main') || document.body;
-        host.insertBefore(box, host.firstChild);
-      } catch (e) { /* 老浏览器没有 URLSearchParams 就不提示，不影响结账 */ }
-    })();
-  </script>
+  <script src="assets/js/account.js?v=2.4.0"></script>
+  <script src="assets/js/solar-pm-salary-app.js?v=2.4.0"></script>
 </body>
 </html>

@@ -625,7 +625,16 @@
     const copyBtn = document.getElementById("btn-copy-result");
     if (copyBtn) copyBtn.addEventListener("click", () => copyResult(item, f));
     const exportBtn = document.getElementById("btn-export-csv");
-    if (exportBtn) exportBtn.addEventListener("click", () => exportResultCsv(item, f));
+    if (exportBtn) exportBtn.addEventListener("click", () => {
+      // 定价页把 CSV 列为 Pro 权益（"Pro ... enables CSV export"）：承诺了就得真拦。
+      // 不拦的后果不是"少赚"，是"卖一个本来免费的功能"——退款争议时这一条站不住。
+      const acct = window.SolarAccount;
+      if (acct && typeof acct.isPro === "function" && !acct.isPro()) {
+        toast("CSV export is a Pro feature. Upgrade from the pricing page.", "error");
+        return;
+      }
+      exportResultCsv(item, f);
+    });
 
     document.getElementById("btn-confirm").addEventListener("click", (event) => {
       if (state.isMock) return;
