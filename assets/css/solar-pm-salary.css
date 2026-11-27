@@ -731,6 +731,64 @@
   border-radius: var(--radius-full);
   padding: 2px 8px;
 }
+/* 页头这两个元素是链接（入口 → /account）：链接默认有下划线，会和"徽标/邮箱"打架 */
+a.account-badge,
+a.account-who { text-decoration: none; }
+a.account-badge:hover { background: var(--color-blue-100); text-decoration: none; }
+a.account-who:hover { color: var(--text-primary); text-decoration: underline; }
+/* 免费档徽标：同一形状，换灰。颜色本身也是信息，不能让 Free 看起来像 Pro */
+.account-badge.is-free {
+  color: var(--text-muted);
+  background: var(--color-gray-100);
+  border-color: var(--color-gray-200);
+}
+
+/* ---- 账号页 /account（2026-11-27） ---- */
+/* `hidden` 必须赢过组件类：`.btn { display:inline-flex }` 的优先级高于浏览器默认的
+   `[hidden]{display:none}` —— 结果就是"藏起来"的 Upgrade 按钮照样画在 Pro 用户面前
+   （2026-11-27 截图实测）。这条放在组件规则之前，任何 hidden 元素都真的不占位。 */
+[hidden] { display: none !important; }
+
+.account-main { padding-top: var(--space-12); padding-bottom: var(--space-16); }
+.account-title { margin-bottom: var(--space-6); }
+.account-loading { color: var(--text-muted); }
+.account-lead { margin: 0 0 var(--space-5); color: var(--text-muted); }
+.account-lead strong { color: var(--text-primary); }
+.account-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--bg-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  margin-bottom: var(--space-5);
+}
+.account-card h2 { margin: 0; font-size: 1.15rem; }
+.account-card p { margin: 0 0 var(--space-3); }
+.account-card p:last-child { margin-bottom: 0; }
+.account-card code {
+  font-size: .88em;
+  /* 只断超长 URL，不按字节硬切：`word-break:break-all` 会把 `<your key>` 切成
+     "Bearer <you / r key>"（2026-11-27 截图实测），读起来像乱码。 */
+  overflow-wrap: anywhere;
+  background: var(--color-gray-100);
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+}
+.account-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-2);
+}
+.account-note { font-size: .9rem; color: var(--text-muted); }
+.account-note.is-blocked { color: var(--color-error); font-weight: var(--weight-medium); }
+.account-actions {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: var(--space-4);
+}
+.account-cta { margin-top: var(--space-4); }
 
 /* ---- 额度提示行 ---- */
 .quota-line {
@@ -904,13 +962,18 @@ body.modal-open { overflow: hidden; }
 }
 
 @media (max-width: 640px) {
-  /* 窄屏优先保住工具本身：导航只留可点的东西，邮箱与 Pro 徽标让位
-     （Pro 状态在额度行里仍有"Pro — unlimited checks"，信息没有丢） */
+  /* 窄屏优先保住工具本身：导航只留可点的东西，邮箱让位。
+     **Pro 徽标不能再藏**：2026-11-27 起它是账号页的唯一入口，藏了就等于
+     手机上没有"我的账号"这条路（隐藏邮箱只影响观感，隐藏入口影响可用性）。 */
   .site-header nav { gap: var(--space-3); min-width: 0; }
   .site-header .site-logo a { white-space: nowrap; }
+  /* 390px 实测（2026-11-27）：logo + Calculator + Pricing + PRO + Sign out 合起来比视口宽
+     21px，溢出部分被裁掉，Sign out 半个按钮看不见。允许换行，不藏入口。 */
+  .site-header .container { flex-wrap: wrap; row-gap: var(--space-2); }
+  .site-header nav { flex-wrap: wrap; justify-content: flex-end; }
   .account-slot { gap: var(--space-2); padding-left: var(--space-2); }
-  .account-who,
-  .account-badge { display: none; }
+  .account-who { display: none; }
+  .account-card { padding: var(--space-5); }
   .paywall { padding: var(--space-5); }
   .paywall h3 { font-size: var(--font-xl); }
   .paywall-plans { gap: var(--space-3); }

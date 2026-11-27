@@ -30,7 +30,7 @@
 
   <link rel="stylesheet" href="assets/css/tokens.css?v=2.0.0">
   <link rel="stylesheet" href="assets/css/base.css?v=2.0.0">
-  <link rel="stylesheet" href="assets/css/solar-pm-salary.css?v=2.1.0">
+  <link rel="stylesheet" href="assets/css/solar-pm-salary.css?v=2.2.0">
   <script src="/bff/js/vr-solar-pm-salary.js?v=3.0.0" data-vr-site="solar-pm-salary" defer></script>
 
   <!-- JSON-LD -->
@@ -118,8 +118,6 @@
   </header>
 
   <main>
-    <!-- 付款回跳提示：文案与显示时机全由 account.js 依据 billing/status 决定（?paid=1 只是线索，不是证据） -->
-    <div id="paid-banner" role="status" aria-live="polite" hidden></div>
     <!-- Hero -->
     <section class="hero">
       <div class="container">
@@ -190,26 +188,6 @@
 
       <section class="results-section" id="results" aria-live="polite" aria-label="Salary results"></section>
 
-      <!-- Pro 面板：只在「已登录 + 有效订阅」时由 account.js 显示（默认 hidden，不占位）。
-           定价页承诺了 API key，就必须有签发入口 —— 否则是"收钱不交付"。 -->
-      <section id="pro-panel" aria-label="Your Pro access" hidden
-               style="margin-top:var(--space-8);padding:18px 20px;border:1px solid #e5e7eb;border-radius:14px;background:#fff">
-        <h2 style="margin:0 0 .4rem;font-size:1.25rem">Your Pro access</h2>
-        <p id="pro-summary" style="margin:0 0 .8rem;color:var(--text-muted)"></p>
-        <h3 style="margin:.6rem 0 .3rem;font-size:1.02rem">API access</h3>
-        <p style="margin:0 0 .6rem;color:var(--text-muted);font-size:.92rem">
-          POST <code>https://api.guomeijiayu.com/solar-pm-salary/v1/estimate</code> with
-          <code>Authorization: Bearer &lt;your key&gt;</code> and the same JSON body as the form
-          (<code>state</code>, <code>experience</code>, <code>certification</code>, <code>segment</code>).
-          1,000 calls per day.
-        </p>
-        <div id="api-key-list"></div>
-        <p style="margin:.8rem 0 0">
-          <button type="button" class="btn btn-secondary" id="api-key-create">Create API key</button>
-        </p>
-        <div id="api-key-secret" hidden></div>
-      </section>
-
       <article class="thick-content">
         <h2>How to Use This Calculator</h2>
         <p>Select your state, experience band, primary certification, and market segment. Stack additional certifications to see combined premium estimates. The calculator returns P25, median, and P75 annual salary ranges based on 2026 BLS OEWS and H-1B LCA benchmarks.</p>
@@ -277,7 +255,7 @@
 
   <script src="assets/js/_site_config.js?v=2.4.0"></script>
   <script src="assets/js/api.js?v=2.0.0"></script>
-  <script src="assets/js/account.js?v=2.4.2"></script>
+  <script src="assets/js/account.js?v=2.5.0"></script>
   <script src="assets/js/solar-pm-salary-app.js?v=2.4.0"></script>
 </body>
 </html>

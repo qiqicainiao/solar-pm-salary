@@ -33,6 +33,32 @@
   const $ = (id) => document.getElementById(id);
 
   /**
+   * 会员页（2026-11-27）：账号/档位/到期日/API key 都只属于"当前这个人"，
+   * 所以从首页搬到了独立页 `/account`，页头只留一个入口。
+   * 不用 CFG 里的常量：这是同站静态页，写死路径比多一个可能对不上的配置项安全。
+   */
+  const ACCOUNT_PAGE = '/account';
+
+  /** 账号页的身份由 body[data-page] 说明，不解析 URL（斜杠 / ?paid=1 都会变） */
+  function isAccountPage() {
+    return document.body && document.body.getAttribute('data-page') === 'account';
+  }
+
+  /**
+   * `?paid=1` 落在别的页面（旧回跳地址、手工拼的链接）时统一送到账号页。
+   * 成功提示只能有一个主人：两处各写一套，早晚会在"钱到了、这边还说 Free"上打架。
+   */
+  function redirectPaidReturn() {
+    if (!queryFlag('paid') || isAccountPage()) return false;
+    try {
+      window.location.replace(ACCOUNT_PAGE + '?paid=1');
+    } catch (e) {
+      window.location.href = ACCOUNT_PAGE + '?paid=1';
+    }
+    return true;
+  }
+
+  /**
    * `/pricing` 的 "Subscribe" 链接带 `?plan=pro_monthly` 过来。
    * 读一次就够：登录成功后要接着进 checkout，不能因为 URL 没变就重复触发。
    */
@@ -214,9 +240,14 @@
   async function boot() {
     if (S.booted) return;
     S.booted = true;
+    // 先判回跳再发请求：这一页马上就要跳走，没必要先拉两份状态
+    if (redirectPaidReturn()) return;
     await Promise.all([loadMe(), loadStatus()]);
     renderAll();
     if (queryFlag('signin') && !(S.user && S.user.logged_in)) openAuth('login');
+    // 账号页是"只有登录会员才看得到内容"的页面：没登录直接把登录框递到面前，
+    // 而不是让人读一段"请登录"再去找按钮
+    if (isAccountPage() && !(S.user && S.user.logged_in)) openAuth('login');
     await handlePaidReturn();
     await resumePendingPlan();
   }
@@ -232,6 +263,7 @@
     renderSlot();
     renderQuota();
     renderProPanel();
+    renderAccountPage();
   }
 
   function renderSlot() {
@@ -251,14 +283,20 @@
       return;
     }
 
-    const who = document.createElement('span');
+    // 邮箱与 Pro 徽标都是「我的账号」的入口：账号相关的东西全在 /account，
+    // 页头只负责带路。用链接而不是按钮，用户能中途开新标签页。
+    const who = document.createElement('a');
     who.className = 'account-who';
+    who.href = ACCOUNT_PAGE;
+    who.title = 'Your account';
     who.textContent = (S.user && S.user.email_masked) ? S.user.email_masked : 'Signed in';
     slot.appendChild(who);
 
     if (isPro()) {
-      const badge = document.createElement('span');
+      const badge = document.createElement('a');
       badge.className = 'account-badge';
+      badge.href = ACCOUNT_PAGE;
+      badge.title = 'Your account — Pro';
       badge.textContent = 'Pro';
       slot.appendChild(badge);
     }
@@ -269,6 +307,20 @@
     out.textContent = 'Sign out';
     out.addEventListener('click', signOut);
     slot.appendChild(out);
+  }
+
+  /**
+   * 免费额度的文案（一处生成、两处挂载：首页额度行 + 账号页档位卡）。
+   * 前端不算次数，只翻译服务端给的 used/limit/resets_at_epoch。
+   */
+  function freeQuotaText(q) {
+    if (!q || q.limit === null || q.limit === undefined) return '';
+    const resetTxt = resetsInText(q.resets_at_epoch);
+    if (q.is_blocked) {
+      return 'Free checks for today are used up' + (resetTxt ? ' · resets in ' + resetTxt : '');
+    }
+    return q.remaining + ' of ' + q.limit + ' free checks left today'
+      + (resetTxt ? ' · resets in ' + resetTxt : '');
   }
 
   function renderQuota() {
@@ -293,16 +345,100 @@
       return;
     }
 
-    const left = q.remaining;
-    const limit = q.limit;
     line.hidden = false;
     line.classList.toggle('is-blocked', q.is_blocked === true);
+    line.textContent = freeQuotaText(q);
+  }
 
-    if (q.is_blocked) {
-      line.textContent = 'Free checks for today are used up · resets in ' + resetsInText(q.resets_at_epoch);
-    } else {
-      line.textContent = left + ' of ' + limit + ' free checks left today · resets in ' + resetsInText(q.resets_at_epoch);
+  // ---------------------------------------------------------------- 账号页
+
+  /**
+   * `/account`：只画"当前这个人"的东西。
+   *
+   * 三档状态必须分得比"Pro / Free"更细：
+   *   paid === true  → 已开通，说到期日
+   *   paid === false → 确定是免费档，说还剩几次
+   *   paid === null  → 读不到（DB/接口抖动），只能说"没读到"，**不许**降级成 Free
+   *                    （把付费用户显示成免费是真实伤害，和把免费显示成 Pro 一样贵）
+   */
+  function renderAccountPage() {
+    if (!isAccountPage()) return;
+
+    const loading = $('account-loading');
+    if (loading) loading.hidden = true;
+
+    const loggedIn = !!(S.user && S.user.logged_in);
+    const guest = $('account-guest');
+    const box = $('account-signedin');
+    if (guest) guest.hidden = loggedIn;
+    if (box) box.hidden = !loggedIn;
+    if (!loggedIn) return;
+
+    setText('account-email', (S.user && S.user.email_masked) ? S.user.email_masked : 'Signed in');
+
+    const since = fmtYmd(S.user && S.user.since);
+    const sinceWrap = $('account-since-wrap');
+    if (sinceWrap) sinceWrap.hidden = !since;
+    if (since) setText('account-since', since);
+
+    const badge = $('account-plan-badge');
+    const name = $('account-plan-name');
+    const line = $('account-plan-line');
+    const quota = $('account-quota');
+    const manage = $('account-manage');
+    const upgrade = $('account-upgrade');
+
+    if (!S.billing) {
+      if (badge) badge.hidden = true;
+      if (name) name.textContent = 'Plan unavailable';
+      if (line) line.textContent = 'We could not read your subscription just now. Reload this page — '
+        + 'if it keeps failing, email 269715607@qq.com.';
+      if (quota) quota.hidden = true;
+      if (manage) manage.hidden = true;
+      if (upgrade) upgrade.hidden = true;
+      return;
     }
+
+    const paid = S.billing.paid === true;
+    if (badge) {
+      badge.hidden = false;
+      badge.textContent = paid ? 'Pro' : 'Free';
+      badge.classList.toggle('is-free', !paid);
+    }
+    if (name) name.textContent = paid ? planName(S.billing.plan || '') : 'Free plan';
+
+    if (paid) {
+      const until = fmtYmd(S.billing.current_period_end);
+      if (line) {
+        line.textContent = (until ? 'Active until ' + until + '. ' : 'Active. ')
+          + 'Unlimited checks, CSV export and 1,000 API calls per day.';
+      }
+      // 付费档不显示"还剩 N 次"：那是免费额度，混在一起看会以为 Pro 也有上限
+      if (quota) quota.hidden = true;
+      if (manage) manage.hidden = false;
+      if (upgrade) upgrade.hidden = true;
+      return;
+    }
+
+    const daily = S.billing.free_quota_daily;
+    if (line) {
+      line.textContent = daily
+        ? 'Includes ' + daily + ' salary lookups per day, no card needed.'
+        : 'The free plan includes a few salary lookups per day, no card needed.';
+    }
+    const qTxt = freeQuotaText(S.quota);
+    if (quota) {
+      quota.hidden = qTxt === '';
+      quota.textContent = qTxt;
+      quota.classList.toggle('is-blocked', !!(S.quota && S.quota.is_blocked === true));
+    }
+    if (manage) manage.hidden = true;
+    if (upgrade) upgrade.hidden = false;
+  }
+
+  function setText(id, text) {
+    const el = $(id);
+    if (el) el.textContent = text;
   }
 
   // ---------------------------------------------------------------- 付费墙
@@ -715,15 +851,6 @@
       return;
     }
     panel.hidden = false;
-
-    const sum = $('pro-summary');
-    if (sum) {
-      const code = S.billing && S.billing.plan ? S.billing.plan : '';
-      const name = code ? planName(code) : 'Pro';
-      const until = S.billing ? fmtYmd(S.billing.current_period_end) : '';
-      sum.textContent = name + (until ? ' · active until ' + until : '')
-        + ' · unlimited checks, CSV export and ' + '1,000 API calls per day.';
-    }
     if (!keysLoaded) {
       keysLoaded = true;
       loadKeys();
@@ -893,6 +1020,12 @@
 
     const createBtn = $('api-key-create');
     if (createBtn) createBtn.addEventListener('click', createKey);
+
+    // 账号页的未登录态：两个按钮都开弹层，不跳回首页（跳走会丢掉"我在看账号页"的上下文）
+    const guestSignin = $('account-signin');
+    if (guestSignin) guestSignin.addEventListener('click', function () { openAuth('login'); });
+    const guestRegister = $('account-register');
+    if (guestRegister) guestRegister.addEventListener('click', function () { openAuth('register'); });
 
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') closeAuth();

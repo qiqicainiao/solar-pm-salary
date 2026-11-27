@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your account | Solar PM Salary Benchmark</title>
+  <meta name="description" content="Plan status, billing date and API keys for your Solar PM Salary Benchmark account.">
+  <!-- 私有页：不索引。页面内容只对"已登录的这个人"有意义，收录进搜索结果只会
+       把一屏"请登录"塞给陌生人（真正的功能在首页和定价页）。 -->
+  <meta name="robots" content="noindex, follow">
+  <meta name="theme-color" content="#2563eb">
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="canonical" href="https://solarpmlab.com/account">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/tokens.css?v=2.0.0">
+  <link rel="stylesheet" href="assets/css/base.css?v=2.0.0">
+  <link rel="stylesheet" href="assets/css/solar-pm-salary.css?v=2.2.0">
+
+  <script src="assets/js/_site_config.js?v=2.4.0"></script>
+  <script src="/bff/js/vr-solar-pm-salary.js?v=3.0.0" data-vr-site="solar-pm-salary" defer></script>
+</head>
+<!-- data-page 是这一页的身份标记：account.js 靠它区分"账号页"与工具页，
+     不靠 URL 字符串（带不带斜杠、带不带 ?paid=1 都会变）。 -->
+<body data-page="account">
+
+  <header class="site-header">
+    <div class="container">
+      <div class="site-logo"><a href="/">Solar PM Salary</a></div>
+      <nav aria-label="Main navigation">
+        <a href="/">Calculator</a>
+        <a href="/pricing">Pricing</a>
+        <div class="account-slot" id="account-slot"></div>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container-narrow account-main">
+    <h1 class="account-title">Your account</h1>
+
+    <!-- 付款回跳提示：文案与显示时机全由 account.js 依据 billing/status 决定（?paid=1 只是线索，不是证据） -->
+    <div id="paid-banner" role="status" aria-live="polite" hidden></div>
+
+    <p class="account-loading" id="account-loading">Loading your account…</p>
+
+    <!-- 未登录：这一页没有任何属于他的信息可看，只给登录/注册两个出口 -->
+    <section class="account-card" id="account-guest" hidden>
+      <h2>Sign in to see your account</h2>
+      <p>Plan status, renewal date and API keys belong to the account you are signed in with — there is nothing to show until you sign in.</p>
+      <div class="account-actions">
+        <button type="button" class="btn btn-primary" id="account-signin">Sign in</button>
+        <button type="button" class="btn btn-secondary" id="account-register">Create account</button>
+      </div>
+    </section>
+
+    <div id="account-signedin" hidden>
+      <p class="account-lead">
+        Signed in as <strong id="account-email">—</strong><span id="account-since-wrap" hidden> · member since <span id="account-since"></span></span>
+      </p>
+
+      <section class="account-card" aria-label="Your plan">
+        <div class="account-status">
+          <span class="account-badge is-free" id="account-plan-badge">—</span>
+          <h2 id="account-plan-name">…</h2>
+        </div>
+        <p id="account-plan-line">…</p>
+        <p class="account-note" id="account-quota" hidden></p>
+        <p class="account-note" id="account-manage" hidden>Change your card, download invoices or cancel from the link in your Creem receipt email.</p>
+        <a class="btn btn-primary account-cta" id="account-upgrade" href="/pricing" hidden>Upgrade to Pro</a>
+      </section>
+
+      <!-- Pro 面板：只在「已登录 + 有效订阅」时由 account.js 显示（默认 hidden，不占位）。
+           定价页承诺了 API key，就必须在这里有签发入口 —— 否则是"收钱不交付"。 -->
+      <section class="account-card" id="pro-panel" aria-label="Your Pro access" hidden>
+        <h2>API access</h2>
+        <p class="account-note">
+          POST <code>https://api.guomeijiayu.com/solar-pm-salary/v1/estimate</code> with
+          <code>Authorization: Bearer &lt;your key&gt;</code> and the same JSON body as the form
+          (<code>state</code>, <code>experience</code>, <code>certification</code>, <code>segment</code>).
+          1,000 calls per day.
+        </p>
+        <div id="api-key-list"></div>
+        <p style="margin:.8rem 0 0">
+          <button type="button" class="btn btn-secondary" id="api-key-create">Create API key</button>
+        </p>
+        <div id="api-key-secret" hidden></div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div>&copy; 2026 Solar PM Salary Benchmark. Estimates only. Contact: <a href="mailto:269715607@qq.com">269715607@qq.com</a></div>
+      <div><a href="/">Calculator</a> · <a href="/pricing">Pricing</a> · <a href="/terms">Terms</a> · <a href="/refund">Refunds</a> · <a href="/solar-pm-salary-privacy.html">Privacy Policy</a></div>
+    </div>
+  </footer>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <!-- 弹层写在标记里（不由 JS 造），CSP 就不需要 innerHTML 许可。 -->
+  <div class="modal-backdrop" id="auth-modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+      <button type="button" class="modal-close" id="auth-close" aria-label="Close">×</button>
+      <h3 id="auth-title">Sign in</h3>
+      <p class="modal-sub" id="auth-sub">Your checks and Pro plan are tied to this account.</p>
+      <form id="auth-form" novalidate>
+        <label for="auth-email">Email</label>
+        <input type="email" id="auth-email" name="email" required autocomplete="email" placeholder="you@company.com">
+        <label for="auth-password">Password</label>
+        <input type="password" id="auth-password" name="password" required minlength="8" autocomplete="current-password" placeholder="At least 8 characters">
+        <p class="auth-error" id="auth-error" role="alert" hidden></p>
+        <button type="submit" class="btn btn-primary" id="auth-submit">Sign in</button>
+      </form>
+      <p class="modal-switch"><button type="button" class="link-btn" id="auth-switch">New here? Create an account</button></p>
+    </div>
+  </div>
+
+  <script src="assets/js/account.js?v=2.5.0"></script>
+</body>
+</html>
