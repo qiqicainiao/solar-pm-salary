@@ -52,6 +52,16 @@
     ]
   }
   </script>
+  <style>
+    /* 移动端（2026-11-27 真机截图发现）：390px 下两张卡片并排 → 每列仅约 170px，
+       正文被压成三四个字一行，价格看起来像被切断；导航 4 个链接也会互相挤。
+       只在这一页加规则，不动共享 CSS（避免为了一个页面把 5 个页面的 ?v 全升一遍）。 */
+    @media (max-width: 720px) {
+      .pricing-grid { grid-template-columns: 1fr !important; }
+      .site-header .container { flex-wrap: wrap; row-gap: .4rem; }
+      .site-header nav { flex-wrap: wrap; }
+    }
+  </style>
   <script src="assets/js/_site_config.js?v=2.4.0"></script>
   <script src="/bff/js/vr-solar-pm-salary.js?v=3.0.0" data-vr-site="solar-pm-salary" defer></script>
 </head>
@@ -73,7 +83,7 @@
     <p style="color:var(--text-muted);margin-bottom:var(--space-8)">The calculator stays free. Pro removes the daily limit and adds export and API access.</p>
 
     <section style="margin-bottom:var(--space-10)">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-6);align-items:start">
+      <div class="pricing-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-6);align-items:start">
 
         <div style="border:1px solid var(--border, #e5e7eb);border-radius:12px;padding:var(--space-6)">
           <h2 style="font-size:1.125rem;margin:0 0 .25rem">Free</h2>
