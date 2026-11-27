@@ -12,10 +12,44 @@
   <link rel="stylesheet" href="assets/css/solar-pm-salary.css?v=2.2.0">
 </head>
 <body>
+  <header class="site-header">
+    <div class="container">
+      <div class="site-logo"><a href="/">Solar PM Salary</a></div>
+      <nav aria-label="Main navigation">
+        <a href="/">Salary Calculator</a>
+        <a href="/pricing">Pricing</a>
+        <a href="/refund">Refunds</a>
+        <div class="account-slot" id="account-slot"></div>
+      </nav>
+    </div>
+  </header>
+
   <main style="max-width:720px;margin:10vh auto;padding:24px;font-family:Inter,system-ui,sans-serif;line-height:1.6">
     <h1>Page not found (404)</h1>
     <p>That page does not exist. The free Solar PM salary benchmark calculator is on the home page.</p>
     <p><a href="/">Go to the salary calculator</a> · <a href="/solar-pm-salary-privacy">Privacy policy</a></p>
   </main>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <!-- 登录弹层写在标记里（不由 JS 造），CSP 就不需要 innerHTML 许可。 -->
+  <div class="modal-backdrop" id="auth-modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+      <button type="button" class="modal-close" id="auth-close" aria-label="Close">×</button>
+      <h3 id="auth-title">Sign in</h3>
+      <p class="modal-sub" id="auth-sub">Your checks and Pro plan are tied to this account.</p>
+      <form id="auth-form" novalidate>
+        <label for="auth-email">Email</label>
+        <input type="email" id="auth-email" name="email" required autocomplete="email" placeholder="you@company.com">
+        <label for="auth-password">Password</label>
+        <input type="password" id="auth-password" name="password" required minlength="8" autocomplete="current-password" placeholder="At least 8 characters">
+        <p class="auth-error" id="auth-error" role="alert" hidden></p>
+        <button type="submit" class="btn btn-primary" id="auth-submit">Sign in</button>
+      </form>
+      <p class="modal-switch"><button type="button" class="link-btn" id="auth-switch">New here? Create an account</button></p>
+    </div>
+  </div>
+
+  <script src="assets/js/_site_config.js?v=2.4.0"></script>
+  <script src="assets/js/account.js?v=2.5.0"></script>
 </body>
 </html>
