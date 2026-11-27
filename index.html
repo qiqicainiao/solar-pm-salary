@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <script src="assets/js/telemetry-result-hooks.js?v=1.0.0"></script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Solar PM Salary Calculator — Pay by State & Certification</title>
@@ -32,6 +31,7 @@
   <link rel="stylesheet" href="assets/css/tokens.css?v=2.0.0">
   <link rel="stylesheet" href="assets/css/base.css?v=2.0.0">
   <link rel="stylesheet" href="assets/css/solar-pm-salary.css?v=2.1.0">
+  <script src="/bff/js/vr-solar-pm-salary.js?v=3.0.0" data-vr-site="solar-pm-salary" defer></script>
 
   <!-- JSON-LD -->
   <script type="application/ld+json">
@@ -98,7 +98,7 @@
 
   <div id="consent-banner" class="consent-banner" role="dialog" aria-label="Cookie consent">
     <div class="container">
-      <p>We use essential analytics to improve this tool and keep benchmarks accurate. You can accept or reject — the calculator works either way.</p>
+      <p>We use an anonymous page-visit count (no cookies, no cross-session identifiers). If you accept, we also record detailed usage data (tool duration, outcomes, error types) to improve the product.</p>
       <div class="consent-buttons">
         <button id="consent-accept" class="consent-accept" type="button">Accept</button>
         <button id="consent-reject" class="consent-reject" type="button">Reject</button>
@@ -253,10 +253,9 @@
     </div>
   </div>
 
-  <script src="assets/js/_site_config.js?v=2.3.0"></script>
+  <script src="assets/js/_site_config.js?v=2.3.2"></script>
   <script src="assets/js/api.js?v=2.0.0"></script>
-  <script src="assets/js/telemetry-sdk.js?v=2.2.0"></script>
-  <script src="assets/js/account.js?v=2.3.0"></script>
-  <script src="assets/js/solar-pm-salary-app.js?v=2.2.0"></script>
+  <script src="assets/js/account.js?v=2.3.1"></script>
+  <script src="assets/js/solar-pm-salary-app.js?v=2.3.1"></script>
 </body>
 </html>

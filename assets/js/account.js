@@ -15,12 +15,9 @@
  *     前端只负责显示；`checkout` 也只传 plan_code，绝不传金额。
  *   · **cookie 靠同源代理**：`/bff/` 是 Pages Function 反代，会话 cookie 由它转发，
  *     所以这里一律 `credentials: 'same-origin'`，不跨域。
- *   · `checkout_started` 是**意图**，`payment_succeeded` 是**事实**（服务端 webhook 产生）。
- *     前者点按钮就发，后者前端永远发不出来（契约里是 server-only）。
  */
 (function () {
   const CFG = window.SITE_CONFIG;
-  const T = window.Telemetry;
 
   const S = {
     booted: false,
@@ -405,23 +402,10 @@
 
   // ---------------------------------------------------------------- 购买
 
-  function trackCheckout(planCode, interval) {
-    if (!T || typeof T.track !== 'function') return;
-    T.track('checkout_started', {
-      plan: String(planCode || '').slice(0, 20),
-      billing_interval: interval === 'year' ? 'year' : 'month',
-      source_page: (location.pathname || '/').slice(0, 120),
-      trial: false
-    });
-  }
-
   async function startCheckout(planCode) {
     if (S.busy) return;
     const plan = S.plans.filter(function (x) { return x.plan_code === planCode; })[0];
     if (!plan) return;
-
-    // 意图事件先发：即使用户在跳转前关掉页面，"想买"这件事也是真的
-    trackCheckout(planCode, plan.billing_interval);
 
     S.busy = true;
     const res = await req(CFG.BILLING_CHECKOUT_PATH, { body: { plan: planCode } });

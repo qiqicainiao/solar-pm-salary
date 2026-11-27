@@ -1,17 +1,6 @@
 (function () {
   const CFG = window.SITE_CONFIG;
   const API = window.SolarPMAPI;
-  const T = window.Telemetry;
-
-  if (T) {
-    T.init({
-      siteId: CFG.SITE_ID,
-      endpoint: CFG.SDK_ENDPOINT,
-      manifestUrl: CFG.MANIFEST_URL,
-      consent: false,
-      production: CFG.ENV === "prod"
-    });
-  }
 
   const $ = (id) => document.getElementById(id);
 
@@ -252,15 +241,6 @@
     };
   }
 
-  function factPairLite(f) {
-    return {
-      state: f.state,
-      experience_bucket: f.experience_bucket,
-      certification: f.certification,
-      segment: f.segment
-    };
-  }
-
   function factPairConfirm(f) {
     return {
       state: f.state,
@@ -271,80 +251,45 @@
     };
   }
 
-  function ev(name, payload) {
-    if (T && typeof T.track === "function") T.track(name, payload || {});
-  }
+  function reportTrainingEvent(name, payload) {
+    const debug = window.VR.debug();
+    if (debug.isolated || debug.consentMode !== "granted") return;
 
-  function toolStarted() { ev("tool_started", { tool_name: "solar-pm-salary" }); }
-  function toolCompleted(durationMs, succeeded) {
-    ev("tool_completed", { tool_name: "solar-pm-salary", succeeded: succeeded === true, duration_ms: durationMs });
-  }
-  // error_stage：失败发生在哪一段（init/input/parse/compute/render/network/timeout/unknown）。
-  // 只记 error_code 的话，"接口报错"和"渲染崩了"在数据里长得一模一样，没法定位。
-  function toolFailed(errorCode, errorStage) {
-    ev("tool_failed", { error_code: errorCode, error_stage: errorStage || "unknown" });
-  }
+    const userAgent = String(window.navigator.userAgent || "").toLowerCase();
+    let deviceType = "unknown";
+    if (userAgent) {
+      deviceType = /ipad|tablet/.test(userAgent) || (/android/.test(userAgent) && !/mobile/.test(userAgent))
+        ? "tablet"
+        : (/mobile|iphone|ipod|android|phone/.test(userAgent) ? "mobile" : "desktop");
+    }
+    let referrerHost = "direct";
+    if (document.referrer) {
+      try {
+        referrerHost = new URL(document.referrer).hostname.toLowerCase().replace(/^www\./, "") || "direct";
+      } catch (e) {}
+    }
 
-  function checkStarted(f) {
-    ev("check_started", factPairAll(f));
-  }
-  function attributionFields(item) {
-    const valid = item && typeof item === "object";
-    return {
-      rule_id: valid && item.rule_id ? item.rule_id : null,
-      rule_version: valid && item.rule_version !== undefined ? item.rule_version : null,
-      confidence: valid && typeof item.confidence === "number" ? item.confidence : 0,
-      matched_terms: valid && Array.isArray(item.matched_terms) ? item.matched_terms : [],
-      diff_detail: valid && item.diff_detail ? item.diff_detail : "",
-      sample_source: valid && item.sample_source ? item.sample_source : "system"
-    };
-  }
-  function checkCompleted(item, f, backendCheckDurationMs, renderMs, itemsCount, dimensionCount, errorCode, processingTimeMs) {
-    ev("check_completed", Object.assign(
-      {
-        check_duration_ms: backendCheckDurationMs,
-        processing_time_ms: typeof processingTimeMs === "number" ? Math.round(processingTimeMs) : undefined,
-        render_ms: renderMs,
-        items_count: itemsCount,
-        dimension_count: dimensionCount,
-        error_code: errorCode || null
-      },
-      attributionFields(item),
-      factPairAll(f)
-    ));
-  }
-  function checkFailed(f, errorCode, httpStatus) {
-    ev("check_failed", Object.assign(
-      {
-        error_code: errorCode,
-        http_status: httpStatus,
-        state: f.state,
-        certification: f.certification
-      },
-      attributionFields(null)
-    ));
-  }
-
-  function resultViewed(f, renderMs, dimCount, hasPremium) {
-    ev("result_viewed", Object.assign(
-      { render_ms: renderMs, dimension_count: dimCount, has_premium: !!hasPremium },
-      factPairLite(f)
-    ));
-  }
-  function certPremiumExpanded(certEnum) {
-    ev("cert_premium_expanded", { cert: certEnum });
-  }
-  function resultDwell(dwellSeconds, dimCount) {
-    ev("result_dwell", { dwell_seconds: dwellSeconds, dimension_count: dimCount });
-  }
-  // Q3 的两个分子（export / result_copied）此前恒为 0：结果页当天只有三个"反馈"按钮，
-  // 没有任何导出/复制入口，事件在结构上就不可能产生。补按钮的同时补埋点。
-  // 字段用语义字典里预留的 L4：export_format / copy_format / item_count（不新增字典键）。
-  function resultCopied(copyFormat, itemCount) {
-    ev("result_copied", { copy_format: copyFormat, item_count: itemCount });
-  }
-  function resultExported(exportFormat, itemCount) {
-    ev("export", { export_format: exportFormat, item_count: itemCount });
+    const event = Object.assign({
+      event: name,
+      event_id: API.genEventId(),
+      ts: Date.now()
+    }, payload || {});
+    fetch(debug.endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=UTF-8" },
+      body: JSON.stringify({
+        site_id: debug.siteId,
+        consent: true,
+        sess_ref: debug.sessRef,
+        page_path: debug.path || location.pathname,
+        device_type: deviceType,
+        referrer_host: referrerHost,
+        schema_v: 1,
+        sdk_v: debug.version,
+        events: [event]
+      }),
+      keepalive: true
+    }).catch(function () {});
   }
 
   /** 复制与导出共用同一份事实，避免"屏幕上看到的"和"复制出去的"不一致。 */
@@ -366,7 +311,7 @@
 
   function copyResult(item, f) {
     const text = resultLines(item, f).join("\n");
-    const done = () => { resultCopied("text", 1); toast("Copied to clipboard.", "success"); };
+    const done = () => toast("Copied to clipboard.", "success");
     const fail = () => toast("Copy blocked by your browser. Select the numbers above instead.", "error");
     if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
       navigator.clipboard.writeText(text).then(done).catch(fail);
@@ -414,7 +359,6 @@
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 2000);
-      resultExported("csv", rows.length - 1);
       toast("CSV downloaded.", "success");
     } catch (e) {
       toast("Export failed in this browser.", "error");
@@ -426,7 +370,7 @@
   }
 
   function correctionConfirmed(item, f) {
-    ev("correction_confirmed", Object.assign(
+    reportTrainingEvent("correction_confirmed", Object.assign(
       {
         rule_id: item.rule_id,
         rule_version: item.rule_version,
@@ -439,7 +383,7 @@
     ));
   }
   function correctionSubmitted(item, f, attemptCount, salaryBucket, reason) {
-    ev("correction_submitted", Object.assign(
+    reportTrainingEvent("correction_submitted", Object.assign(
       {
         rule_id: item.rule_id,
         rule_version: item.rule_version,
@@ -458,7 +402,7 @@
     ));
   }
   function falseNegativeFlagged(item, f, reason) {
-    ev("false_negative_flagged", Object.assign(
+    reportTrainingEvent("false_negative_flagged", Object.assign(
       {
         rule_id: null,
         rule_version: null,
@@ -471,45 +415,21 @@
       factPairAll(f)
     ));
   }
-  function consentChanged(consentBool) {
-    ev("consent_changed", { consent: !!consentBool });
-  }
-
   const consentBanner = document.getElementById("consent-banner");
   const consentBtnAccept = document.getElementById("consent-accept");
   const consentBtnReject = document.getElementById("consent-reject");
 
-  function loadConsent() {
-    try { return localStorage.getItem(CFG.CONSENT_KEY); } catch (e) { return null; }
-  }
-  function saveConsent(val) {
-    try { localStorage.setItem(CFG.CONSENT_KEY, val); } catch (e) {}
-  }
   function initConsent() {
-    const stored = loadConsent();
-    if (stored === "accepted") {
-      if (T && typeof T.setConsent === "function") T.setConsent(true);
-      if (consentBanner) consentBanner.remove();
-    } else if (stored === "rejected") {
-      if (T && typeof T.setConsent === "function") T.setConsent(false);
-      if (consentBanner) consentBanner.remove();
-    } else if (consentBanner) {
-      // 2026-11-20 修：此前首屏 display:none，要等用户先点页面任意处才 reveal。
-      // 后果是"打开看一眼就走"的访客永远看不到横幅 → 永远不表态 → pv_real 恒为 0，
-      // 判定永远停在"样本不够"。同意横幅必须在首屏可见，且不遮挡工具主体。
-      consentBanner.style.display = "";
+    if (consentBanner) {
+      consentBanner.style.display = window.VR.debug().consentMode === "unset" ? "" : "none";
     }
     if (consentBtnAccept) consentBtnAccept.addEventListener("click", () => {
-      saveConsent("accepted");
-      if (T && typeof T.setConsent === "function") T.setConsent(true);
+      window.VR.setConsent(true);
       if (consentBanner) consentBanner.style.display = "none";
-      consentChanged(true);
     });
     if (consentBtnReject) consentBtnReject.addEventListener("click", () => {
-      saveConsent("rejected");
-      if (T && typeof T.setConsent === "function") T.setConsent(false);
+      window.VR.setConsent(false);
       if (consentBanner) consentBanner.style.display = "none";
-      consentChanged(false);
     });
 
     // P1-7：页脚 Cookie 设置 = 撤回入口。撤回后横幅重新出现，人能立刻改主意；
@@ -518,11 +438,10 @@
     if (settings) {
       settings.addEventListener("click", (e) => {
         if (e && e.preventDefault) e.preventDefault();
-        saveConsent("rejected");
-        if (T && typeof T.setConsent === "function") T.setConsent(false);
-        consentChanged(false);
+        window.VR.setConsent(false);
         if (consentBanner) consentBanner.style.display = "";
-        toast("Cookie consent withdrawn. This site no longer collects usage data.");      });
+        toast("Cookie consent withdrawn. This site no longer collects usage data.");
+      });
     }
   }
 
@@ -532,15 +451,9 @@
     currentForm: null,
     requestId: 0,
     abortCtrl: null,
-    checkDurationMs: 0,
-    renderMs: 0,
-    resultShown: false,
+    activeRun: null,
     isMock: false,
     attemptCount: 0,
-    dwellStartTs: 0,
-    dwellReported: false,
-    resultObserver: null,
-    dimensionCount: 0,
     rateLimitReset: null,
     rateLimitTimer: null,
     degradedCount: 0
@@ -556,40 +469,61 @@
     return null;
   }
 
+  function runErrorCode(resp) {
+    const code = String(resp.code || "");
+    if (resp.http === 401 || code === "UNAUTHORIZED") return "auth";
+    if (resp.http === 429 || resp.http === 403 || code === "RATE_LIMITED" || code === "QUOTA_BLOCKED" || code === "ABUSE_CAPPED") return "quota";
+    if (code === "NETWORK_TIMEOUT") return "timeout";
+    if (resp.http === 400 || resp.http === 413 || code === "INVALID_PARAM" || code === "PAYLOAD_TOO_LARGE") return "input_invalid";
+    return "upstream_5xx";
+  }
+
+  function finishRun(run, errorCode) {
+    if (state.activeRun !== run) return;
+    state.activeRun = null;
+    if (errorCode) run.fail(errorCode);
+    else run.ok();
+  }
+
   function onSubmit(e) {
     e.preventDefault();
     if (state.rateLimitReset && state.rateLimitReset > Date.now()) {
+      window.VR.blocked("anon_limit");
       toast("Rate limited. Retry in " + countdownText(state.rateLimitReset) + ".", "error");
       return;
     }
+
+    state.requestId++;
+    const myId = state.requestId;
+    if (state.abortCtrl) state.abortCtrl.abort();
+    state.abortCtrl = null;
+    if (state.activeRun) finishRun(state.activeRun, "timeout");
+
+    const run = window.VR.run("solar-pm-salary");
+    state.activeRun = run;
 
     setView("validating");
     const f = collectForm();
     const err = validate(f);
     if (err) {
+      finishRun(run, "input_invalid");
+      setLoading(false);
       setView("param_error");
       toast(err, "error");
       return;
     }
 
-    if (state.abortCtrl) state.abortCtrl.abort();
     state.abortCtrl = new AbortController();
-    state.requestId++;
-    const myId = state.requestId;
 
     state.currentForm = f;
     state.currentItem = null;
     state.isMock = false;
     state.attemptCount = 0;
-    resetResultTracking();
     showFallback(false);
     hideRateLimit();
     hideResults();
     setView("loading");
     setLoading(true);
-
-    checkStarted(f);
-    const submitStart = performance.now();
 
     API.postCheck({
       state: f.state,
@@ -601,52 +535,31 @@
       dimensions: "salary,premium,comparison",
       detail_level: "full"
     }, { signal: state.abortCtrl.signal }).then(function (resp) {
-      if (myId !== state.requestId || resp.code === "ABORTED") return;
-
-      state.checkDurationMs = Math.round(performance.now() - submitStart);
+      if (myId !== state.requestId) return;
+      if (resp.code === "ABORTED") {
+        finishRun(run, "timeout");
+        return;
+      }
       if (!resp.ok) {
-        handleError(resp, f);
-        toolFailed(String(resp.code || "UNKNOWN_ERROR").toLowerCase(), "compute");
-        toolCompleted(Math.round(performance.now() - submitStart), false);
+        finishRun(run, runErrorCode(resp));
+        handleError(resp);
         return;
       }
 
       state.isMock = resp.isMock === true;
       showFallback(state.isMock);
-      const renderStart = performance.now();
       renderResults(resp, f);
-      const renderMs = Math.round(performance.now() - renderStart);
-      state.renderMs = renderMs;
 
       const data = resp.data || {};
-      const items = Array.isArray(data.items) ? data.items : [];
       // 额度以服务端返回为准（含剩余次数与重置时刻）：本地加减会在多标签/多设备下错账
       if (window.SolarAccount && data.quota_info) {
         window.SolarAccount.onQuota(data.quota_info);
       }
-      const dimensionCount = new Set(items.map(item => item.dimension).filter(Boolean)).size || (items.length ? 1 : 0);
-      const hasPremium = items.some(item => Array.isArray(item.premiums) && item.premiums.length > 0) ||
-        !!(data.summary && Array.isArray(data.summary.cert_premiums) && data.summary.cert_premiums.length);
-
-      if (state.isMock) {
-
-        checkFailed(f, "NETWORK", 0);
-        toolFailed("mock_fallback", "compute");
-      } else {
-        checkCompleted(items[0], f, state.checkDurationMs, renderMs, items.length, dimensionCount, null, state.checkDurationMs + renderMs);
-        state.resultShown = items.length > 0;
-        state.dwellStartTs = state.resultShown ? Date.now() : 0;
-
-        if (items.length) {
-          observeResults(f, renderMs, dimensionCount, hasPremium);
-        }
-      }
-      toolCompleted(Math.round(performance.now() - submitStart), !state.isMock);
+      finishRun(run, state.isMock ? "upstream_5xx" : null);
     }).catch(function () {
       if (myId !== state.requestId) return;
-      handleError({ ok: false, code: "RENDER_ERROR", http: 0 }, f);
-      toolFailed("render_error", "render");
-      toolCompleted(Math.round(performance.now() - submitStart), false);
+      finishRun(run, "unknown");
+      handleError({ ok: false, code: "RENDER_ERROR", http: 0 });
     }).finally(function () {
       if (myId !== state.requestId) return;
       setLoading(false);
@@ -882,19 +795,15 @@
     const btn = e.target.closest(".premium-toggle");
     if (!btn) return;
     const cert = btn.dataset.cert;
-    certPremiumExpanded(cert);
     toast("Opened " + labelizeCert(cert) + " details", "success");
   });
 
-  function handleError(resp, f) {
+  function handleError(resp) {
     const errCode = String(resp.code || "INTERNAL");
-    const httpStatus = Number(resp.http) || 0;
-    resetResultTracking();
     state.currentItem = null;
     state.isMock = false;
     showFallback(false);
     hideResults();
-    checkFailed(f, errCode.slice(0, 24), httpStatus);
 
     let title = "Something went wrong";
     let message = "The salary check could not be completed. Please try again.";
@@ -1009,41 +918,6 @@
     showResults();
   }
 
-  function observeResults(f, renderMs, dimensionCount, hasPremium) {
-    state.dimensionCount = dimensionCount;
-    const resultsEl = document.getElementById("results");
-    if (!resultsEl) return;
-    if (typeof IntersectionObserver !== "function") {
-      resultViewed(f, renderMs, dimensionCount, hasPremium);
-      return;
-    }
-    state.resultObserver = new IntersectionObserver((entries, observer) => {
-      if (entries.some(entry => entry.isIntersecting)) {
-        resultViewed(f, renderMs, dimensionCount, hasPremium);
-        observer.disconnect();
-        state.resultObserver = null;
-      }
-    }, { threshold: 0.5 });
-    state.resultObserver.observe(resultsEl);
-  }
-
-  function resetResultTracking() {
-    if (state.resultObserver) state.resultObserver.disconnect();
-    state.resultObserver = null;
-    state.resultShown = false;
-    state.dwellStartTs = 0;
-    state.dwellReported = false;
-    state.dimensionCount = 0;
-  }
-
-  function reportDwell() {
-    if (!state.resultShown || state.dwellReported || !state.dwellStartTs) return;
-    const seconds = Math.round((Date.now() - state.dwellStartTs) / 1000);
-    if (seconds < 3) return;
-    state.dwellReported = true;
-    resultDwell(seconds, state.dimensionCount);
-  }
-
   function countdownText(resetMs) {
     return Math.max(0, Math.ceil((resetMs - Date.now()) / 1000)) + "s";
   }
@@ -1102,11 +976,9 @@
     fillFormOptions();
     initCertChips();
     initConsent();
-    toolStarted();
     document.getElementById("salary-form").addEventListener("submit", onSubmit);
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "hidden") reportDwell();
+    window.addEventListener("pagehide", () => {
+      if (state.activeRun) finishRun(state.activeRun, "timeout");
     });
-    window.addEventListener("pagehide", reportDwell);
   });
 })();

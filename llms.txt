@@ -7,6 +7,9 @@ Canonical origin: https://solarpmlab.com
 ## Pages
 - [Solar PM Salary Calculator](https://solarpmlab.com/): the main tool — P25/median/P75 salary ranges by state, experience, certification, and segment.
 - [Privacy policy](https://solarpmlab.com/solar-pm-salary-privacy): what is and is not collected; analytics consent.
+- [Pricing](https://solarpmlab.com/pricing): free today; Pro plan is not yet available.
+- [Terms of Service](https://solarpmlab.com/terms): acceptable use, intellectual property, disclaimers.
+- [Refund Policy](https://solarpmlab.com/refund): how refunds are handled once paid plans launch.
 
 ## What this site is
 A free salary benchmark calculator for solar project managers, providing P25/median/P75 ranges by state, experience band, and certification. The calculator lives on the homepage.
