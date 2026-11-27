@@ -257,5 +257,24 @@
   <script src="assets/js/api.js?v=2.0.0"></script>
   <script src="assets/js/account.js?v=2.3.2"></script>
   <script src="assets/js/solar-pm-salary-app.js?v=2.3.1"></script>
+  <!-- Creem 结账回跳：后端把 success_url 指到 /?paid=1，这里给出付款已收到的确认。
+       只认 URL 参数，不改会话状态（状态由 account.js 向 /bff 查，避免"前端自说自话"). -->
+  <script>
+    (function () {
+      try {
+        if (new URLSearchParams(location.search).get('paid') !== '1') return;
+        var box = document.createElement('div');
+        box.setAttribute('role', 'status');
+        box.style.cssText = 'max-width:760px;margin:16px auto 0;padding:12px 16px;'
+          + 'border:1px solid #bfe3c8;background:#effaf1;color:#175c2b;border-radius:10px;'
+          + 'font-size:.95rem;line-height:1.5;';
+        box.innerHTML = '<strong>Payment received.</strong> Sign in with the email you used at checkout — '
+          + 'Pro unlocks as soon as Creem confirms it (usually under a minute). '
+          + 'If you were already signed in, reload this page after a minute.';
+        var host = document.querySelector('main') || document.body;
+        host.insertBefore(box, host.firstChild);
+      } catch (e) { /* 老浏览器没有 URLSearchParams 就不提示，不影响结账 */ }
+    })();
+  </script>
 </body>
 </html>
