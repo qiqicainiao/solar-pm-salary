@@ -670,18 +670,20 @@
     }
     if (!(S.user && S.user.logged_in)) {
       // 没登录时无从判断是谁付的款：只提示去登录，绝不宣告"已收到"
-      banner('Payment received. Sign in with the email you used at checkout to unlock Pro.', 'info');
+      banner('If you just paid, sign in with the email you used at checkout to unlock Pro.', 'info');
       return;
     }
-    banner('Payment received. Activating Pro — this page updates by itself.', 'info');
+    // 措辞刻意不写 "Payment received"：?paid=1 只是个参数，凭它宣告收款等于给任何人
+    // 一个伪造成功页的能力。等 isPro() 为真才说"已开通"，之前只说"正在核对"。
+    banner('Checking your payment with Creem — this page updates by itself once Pro is active.', 'info');
     PAID_POLL.attempts = 0;
     pollPaid();
   }
 
   function pollPaid() {
     if (PAID_POLL.attempts >= PAID_POLL.max) {
-      banner('Payment received, but Pro has not switched on yet. Wait a couple of minutes and reload — '
-        + 'if it still shows Free, email 269715607@qq.com with your receipt number.', 'warn');
+      banner('Creem has not confirmed this payment yet. Wait a couple of minutes and reload — '
+        + 'if Pro still is not active, email 269715607@qq.com with your receipt number.', 'warn');
       return;
     }
     PAID_POLL.attempts += 1;
