@@ -521,7 +521,23 @@
       const cap = el.getAttribute('data-cap');
       if (!cap) continue;
       const ok = can(cap);
-      el.disabled = !ok;
+      /*
+       * 「解锁」只许撤自己的锁，不许替站点打开它本来就关着的功能。
+       *
+       * 站点自己的按钮常常默认 disabled（要在一次渲染之后才可用，比如 audiogram 的
+       * Download / Copy caption）。早先这里直接 `el.disabled = !ok`，于是在
+       * capabilities 全开（= 几乎所有时候）时把那些按钮**提前打开**了：
+       * 用户点到一个还没有内容可导出的按钮，看起来是"功能坏了"。
+       * 所以第一次碰到这个元素时记下它当时的状态，解锁时只还原到那个状态。
+       */
+      if (el.dataset.vrCapPrev === undefined) {
+        el.dataset.vrCapPrev = el.disabled ? '1' : '0';
+      }
+      if (ok) {
+        el.disabled = el.dataset.vrCapPrev === '1';
+      } else {
+        el.disabled = true;
+      }
       el.setAttribute('aria-disabled', ok ? 'false' : 'true');
       if (ok) {
         el.removeAttribute('title');
@@ -531,7 +547,7 @@
         el.classList.add('is-locked');
       }
     }
-    window.VR_CAP = { can: can, caps: caps };
+    window.VR_CAP = { can: can, caps: caps, apply: applyCapabilities };
   }
 
   // ---------------------------------------------------------------- 埋点
