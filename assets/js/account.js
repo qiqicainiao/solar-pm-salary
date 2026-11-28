@@ -84,7 +84,16 @@
     auth_switch_to_login: 'Already have an account? Sign in',
     signed_in: 'Signed in.',
     account_created: 'Account created.',
-    signed_out: 'Signed out.'
+    signed_out: 'Signed out.',
+
+    /* F5：按钮与提示一律由 `entitlement.next_action` 决定，前端不再自己判 isPro() 推文案。
+     * 七枚举：none / signup / buy_once / buy_credits / subscribe / unlock_feature / wait。 */
+    ent_signup: 'Create a free account',
+    ent_buy_once: 'Buy once',
+    ent_buy_credits: 'Buy credits',
+    ent_unlock: 'Unlock this feature',
+    ent_wait: 'Pricing is being adjusted — purchases are paused.',
+    cap_locked: 'Included in Pro.'
   }, window.VR_ACCOUNT_TEXT || {});
 
   /** 只支持 %d / %s：文案表里出现别的占位符就是拼错了，别用模板字符串硬拼 */
@@ -109,6 +118,11 @@
     billing: null,     // billing/status 的 data
     quota: null,       // 额度状态（来自 status，或 check 响应）
     plans: [],
+    // 运行时权益契约（P1，F5 起真接）：回答"下一步干什么 + 还能不能用"。
+    // 与 `billing.pricing` 分工不同 —— 那个管"这站能不能收钱"，这个管"这个人该看到什么"。
+    ent: null,
+    entEtag: '',       // 上次渲染用的 etag（同版本不重画，避免每次进页面闪一下）
+    entErr: null,      // 拉不到时的原因（'network' / '404' / …），只用于降级上报
     authMode: 'login',
     busy: false
   };
@@ -347,14 +361,71 @@
     if (S.billing.quota) S.quota = S.billing.quota;
   }
 
+  /**
+   * 运行时权益契约（F5，`GET /{site}/entitlement`，后端 P1 已上线）。
+   *
+   * 三件不能用别的东西替代的事：
+   *   ① 「下一步干什么」由服务端说（七枚举），前端不再自己 `isPro()` 推一遍 ——
+   *      两个地方各推一次，改一次模型就要改九个站。
+   *   ② 次数由 `meter.limit` 说。`limit === null` 就是「不限」，此时**整句不出现**；
+   *      前端把 `used` 拿来算「还剩几次」是本项目踩过的坑（"3 of 3" 硬编码）。
+   *   ③ 判不了时服务端给 `degraded:true`，这时按**最宽松**放行并上报 ——
+   *      接口抖动把人锁死，比少拦一个免费用户贵得多（与 `sellable` 的 fail-closed 方向相反）。
+   */
+  async function loadEntitlement() {
+    if (S.site_off) { S.ent = null; return; }
+    const res = await req(api('entitlement'));
+    if (bizOk(res) && res.env.data && typeof res.env.data.next_action === 'string') {
+      S.ent = res.env.data;
+      S.entErr = null;
+      return;
+    }
+    // 拉不到（404/500/网络）：不伪造一份「免费用户」，交给 entDegraded() 统一降级
+    if (S.ent === null) S.entErr = res.status ? String(res.status) : 'network';
+  }
+
+  /** 契约不可用（没拿到 / 服务端说 degraded）→ 一律按最宽松放行。 */
+  function entDegraded() {
+    if (!S.ent) return true;
+    return S.ent.degraded === true;
+  }
+
+  /** 七枚举里当前这一个。空串 = 契约不可用 → 调用方沿用旧判据（最宽松）。 */
+  function nextAction() {
+    if (!S.ent || typeof S.ent.next_action !== 'string') return '';
+    return S.ent.next_action;
+  }
+
+  /** 与 V1/后端同口径：`limit === null` 即不限，绝不当成 0。 */
+  function meterOf() {
+    if (S.ent && S.ent.meter && typeof S.ent.meter === 'object') return S.ent.meter;
+    return S.quota;
+  }
+
+  /**
+   * `entitlement.meter.resets_at` 是 ISO 8601（带时区），`quota_info` 是 epoch 秒 ——
+   * 两种形态都要能喂给 `resetsInText()`，否则"几分钟后重置"会算成 NaN。
+   */
+  function meterResetEpoch(m) {
+    if (!m) return 0;
+    if (typeof m.resets_at_epoch === 'number') return m.resets_at_epoch;
+    if (!m.resets_at) return 0;
+    const t = Date.parse(String(m.resets_at));
+    return isNaN(t) ? 0 : Math.floor(t / 1000);
+  }
+
   async function boot() {
     if (S.booted) return;
     S.booted = true;
     // 先判回跳再发请求：这一页马上就要跳走，没必要先拉两份状态
     if (redirectPaidReturn()) return;
     await Promise.all([loadMe(), loadStatus()]);
+    // entitlement 必须排在 loadMe 之后：`next_action` 取决于"这个人是谁"。
+    // 与 status 并行能省一次往返，但未登录/登录两种结果会撞在一起 —— 不值。
+    await loadEntitlement();
     renderAll();
     reportPricingSeen();
+    reportEntDegraded();
     // 404（这站没开账号）：不弹登录框、不处理 ?paid / ?plan，页头也不留入口
     if (S.site_off) return;
     startSellableWatch();
@@ -368,7 +439,9 @@
 
   async function refresh() {
     await Promise.all([loadMe(), loadStatus()]);
+    await loadEntitlement();
     renderAll();
+    reportEntDegraded();
   }
 
   // §9.1②：sellable 从 false 变 true 时前端自动刷新，不依赖用户手动刷新页面。
@@ -383,14 +456,16 @@
     const wasSellable = isSellable();
     try {
       await loadStatus();
+      try { await loadEntitlement(); } catch (e) { /* 契约失败不影响"能不能卖"的判断 */ }
     } catch (e) {
       // 网络抖动：保留当前渲染，不因一次失败就清掉已开卖的卡片
       return;
     }
-    renderAll();
+    renderIfChanged();
     // 定价状态翻转时重置上报闸门，让新状态再上报一次（同一状态不重复上报）
     if (wasSellable !== isSellable()) pricingReported = false;
     reportPricingSeen();
+    reportEntDegraded();
   }
 
   function scheduleSellablePoll() {
@@ -411,14 +486,102 @@
     scheduleSellablePoll();
   }
 
+  // ---------------------------------------------------------------- 功能位（F5.4）
+
+  /**
+   * 功能位只有 `capabilities` 一个真相源：**不许**自己读 `plans[].features` 推一遍。
+   * 那些 `features` 在服务端没有执行点，照它画锁就会画出"页面上锁着、接口照样给"。
+   */
+  function caps() {
+    if (S.ent && S.ent.capabilities && typeof S.ent.capabilities === 'object') {
+      return S.ent.capabilities;
+    }
+    // 契约不可用 → 全开（fail-open，与后端同方向）
+    return { export: true, batch: true, api: true, history: true };
+  }
+
+  function can(cap) {
+    return caps()[cap] !== false;
+  }
+
+  /**
+   * 给受控元素加锁/解锁。
+   *
+   * 约定：任何「高级功能」元素写 `data-cap="export|batch|api|history"` 即受控，
+   * 站点脚本要自查时用 `window.VR_CAP.can('export')`。本文件不猜 id ——
+   * 九站 DOM 各不相同，猜 id 的结果是"改了九个站才有一个真锁上"。
+   *
+   * 锁的表现是 `disabled` + `aria-disabled` + 标题说明，**不隐藏**：
+   * 藏起来会让人以为功能没了，而不是"要升级"。
+   */
+  function applyCapabilities() {
+    const nodes = document.querySelectorAll('[data-cap]');
+    for (let i = 0; i < nodes.length; i++) {
+      const el = nodes[i];
+      const cap = el.getAttribute('data-cap');
+      if (!cap) continue;
+      const ok = can(cap);
+      el.disabled = !ok;
+      el.setAttribute('aria-disabled', ok ? 'false' : 'true');
+      if (ok) {
+        el.removeAttribute('title');
+        el.classList.remove('is-locked');
+      } else {
+        el.setAttribute('title', TEXT.cap_locked);
+        el.classList.add('is-locked');
+      }
+    }
+    window.VR_CAP = { can: can, caps: caps };
+  }
+
+  // ---------------------------------------------------------------- 埋点
+
+  /** 上报走站点已有的通道（`VR.track` / `Telemetry.track`），不发明新接口。 */
+  function trackEvent(name, payload) {
+    try {
+      if (window.VR && typeof window.VR.track === 'function') {
+        window.VR.track(name, payload);
+      } else if (window.Telemetry && typeof window.Telemetry.track === 'function') {
+        window.Telemetry.track(name, payload);
+      }
+    } catch (e) { /* 埋点失败不影响页面 */ }
+  }
+
+  let entReported = '';
+  /**
+   * 契约降级上报（F5.5）。没有它，"接口抖动时放行了谁"永远查不到 ——
+   * 降级放行本身是对的，但它必须是可见的，否则和"真的不限"长得一模一样。
+   */
+  function reportEntDegraded() {
+    if (!entDegraded()) return;
+    const state = S.ent ? 'degraded' : (S.entErr || 'missing');
+    if (entReported === state) return;
+    entReported = state;
+    trackEvent('entitlement_degraded', { site: SITE_ID, reason: state });
+  }
+
   // ---------------------------------------------------------------- 渲染
 
   function renderAll() {
+    // 记账放在渲染里，而不是放在 renderIfChanged 里：任何直接调 renderAll 的路径
+    // （首帧、支付回跳）也必须把 etag 记下来，否则下一次轮询会重复画一遍。
+    S.entEtag = (S.ent && S.ent.etag) ? String(S.ent.etag) : '';
     renderSlot();
     renderQuota();
     renderProPanel();
     renderAccountPage();
     renderPricingPage();
+    applyCapabilities();
+  }
+
+  /**
+   * etag 没变就不重画（F5.7）：同一份配置连续进两次页面，不该闪一下。
+   * 首帧（还没有 etag）必须画；etag 缺失时也画（宁可多画一次，也不留空白页）。
+   */
+  function renderIfChanged() {
+    const tag = (S.ent && S.ent.etag) ? String(S.ent.etag) : '';
+    if (tag !== '' && tag === S.entEtag) return;
+    renderAll();
   }
 
   // ---------------------------------------------------------------- 定价判据
@@ -434,6 +597,22 @@
    */
   function isSellable() {
     return pricingBlock().sellable === true;
+  }
+
+  /**
+   * 七枚举 → 按钮文案（F5.2）。**前端不做"哪个档位该买"的推理**，只把服务端的意思翻成字。
+   * 契约不可用（`act === ''`）时沿用旧的 Upgrade 文案：这是最宽松的那一条，
+   * 而不是"什么都不画"——什么都不画会让九站在接口抖动时看起来像不能买。
+   */
+  function ctaLabel(act) {
+    switch (act) {
+      case 'signup': return TEXT.ent_signup;
+      case 'buy_once': return TEXT.ent_buy_once;
+      case 'buy_credits': return TEXT.ent_buy_credits;
+      case 'unlock_feature': return TEXT.ent_unlock;
+      case 'subscribe': return TEXT.upgrade;
+      default: return TEXT.upgrade;
+    }
   }
 
   /** 会员页档位卡下方的一句话（§7 第 6/12 条）。只影响文案，不影响布局。 */
@@ -459,11 +638,39 @@
     const tm = $('pricing-testmode');
     const sellable = isSellable();
 
+    // 这段文案会被 `wait` 分支改写，所以先记下 HTML 里的原文：
+    // 不记的话，一次"计费调整中"之后只要刷新一次状态，页面上就永久留着那句话。
+    if (notes && notes.getAttribute('data-vr-orig') === null) {
+      notes.setAttribute('data-vr-orig', notes.textContent);
+    }
+
     if (tm) tm.hidden = true;
-    if (notes) notes.hidden = sellable;
+    if (notes) {
+      notes.hidden = sellable;
+      if (!sellable) notes.textContent = notes.getAttribute('data-vr-orig') || '';
+    }
     if (!plans) return;
 
     if (!sellable) {
+      plans.textContent = '';
+      plans.hidden = true;
+      return;
+    }
+
+    // F5.2：`wait`（计费调整中）= 页面**无价格、无按钮**。
+    // 画一个禁用的购买按钮会让人以为是网络问题、反复刷新；明说"调整中"才是诚实的。
+    const act = nextAction();
+    if (act === 'wait') {
+      plans.textContent = '';
+      plans.hidden = true;
+      if (notes) {
+        notes.hidden = false;
+        notes.textContent = TEXT.ent_wait;
+      }
+      return;
+    }
+    // `none` = 这个人不需要做任何事（已付费，或这个模型本来就没有"下一步"）→ 不画收银台
+    if (act === 'none') {
       plans.textContent = '';
       plans.hidden = true;
       return;
@@ -500,8 +707,10 @@
       const cta = document.createElement('button');
       cta.type = 'button';
       cta.className = 'btn btn-primary';
-      cta.textContent = TEXT.upgrade;
+      cta.textContent = ctaLabel(act);
       cta.addEventListener('click', function () {
+        // `signup` 是免费动作：开注册弹层，不要拉结账（画一个点下去 401 的按钮更差）
+        if (act === 'signup') { openAuth('register'); return; }
         startCheckout(plan.plan_code || plan.code);
       });
       card.appendChild(cta);
@@ -519,26 +728,27 @@
   }
 
   let pricingReported = false;
-  /** §12.1：拿到 billing/status 后上报一次"用户看到的是哪一版定价"。不自造通道。 */
+  /**
+   * F5.6：拿到配置后上报一次"用户看到的是哪一版定价"。
+   *
+   * 事件名从 `pricing_state_seen` 改为 `pricing_config_seen`（§6/§8 的口径），
+   * 并补 `pricing_version` —— 它来自 `entitlement.pricing_version`（运行时真实生效的那一版），
+   * 而不是 `billing.pricing.version`（配置页面的版本）：灰度期间两者可以不同，
+   * 核对"我配的和我看到的"必须用前者。
+   */
   function reportPricingSeen() {
     if (pricingReported) return;
     pricingReported = true;
-    try {
-      const p = pricingBlock();
-      const payload = {
-        site: SITE_ID,
-        state: p.state || null,
-        preset: p.preset || null,
-        version: (typeof p.version === 'number') ? p.version : null,
-        sellable: p.sellable === true
-      };
-      // v3 SDK 目前只暴露 run/blocked；有通用事件通道时再上报，不发明接口。
-      if (window.VR && typeof window.VR.track === 'function') {
-        window.VR.track('pricing_state_seen', payload);
-      } else if (window.Telemetry && typeof window.Telemetry.track === 'function') {
-        window.Telemetry.track('pricing_state_seen', payload);
-      }
-    } catch (e) { /* 埋点失败不影响页面 */ }
+    const p = pricingBlock();
+    const ent = S.ent || {};
+    trackEvent('pricing_config_seen', {
+      site: SITE_ID,
+      state: p.state || null,
+      preset: ent.preset || p.preset || null,
+      pricing_version: (typeof ent.pricing_version === 'number') ? ent.pricing_version : null,
+      version: (typeof p.version === 'number') ? p.version : null,
+      sellable: p.sellable === true
+    });
   }
 
   function renderSlot() {
@@ -587,11 +797,13 @@
 
   /**
    * 免费额度的文案（一处生成、两处挂载：首页额度行 + 账号页档位卡）。
-   * 前端不算次数，只翻译服务端给的 used/limit/resets_at_epoch。
+   * 前端不算次数，只翻译服务端给的 used/limit/resets_at —— 数字一律来自接口。
+   *
+   * `limit === null` = 不限（P01 或判不了）：**整句不出现**，不许写成 "3 of 3"。
    */
   function freeQuotaText(q) {
     if (!q || q.limit === null || q.limit === undefined) return '';
-    const resetTxt = resetsInText(q.resets_at_epoch);
+    const resetTxt = resetsInText(meterResetEpoch(q));
     if (q.is_blocked) {
       return 'Free checks for today are used up' + (resetTxt ? ' · resets in ' + resetTxt : '');
     }
@@ -603,7 +815,8 @@
     const line = $('quota-line');
     if (!line) return;
 
-    const q = S.quota;
+    // 额度以 `entitlement.meter` 为权威；契约不可用时退回 `quota_info`（旧字段仍在）。
+    const q = meterOf();
     if (!q) {
       line.hidden = true;
       return;
@@ -742,9 +955,15 @@
       notice.textContent = nTxt;
     }
 
-    // 购买入口只在真的能卖时出现（sellable === true）
-    if (isSellable()) {
-      if (upgrade) upgrade.hidden = false;
+    // 购买入口只在真的能卖、且这个**人**确实需要买时出现（sellable === true 且 next_action 不是 none/wait）。
+    // 契约不可用（act === ''）时退回旧判据：宁可多给一个能用的入口，也不要因为接口抖动把它藏掉。
+    const act = nextAction();
+    const buyable = isSellable() && act !== 'none' && act !== 'wait';
+    if (buyable) {
+      if (upgrade) {
+        upgrade.hidden = false;
+        upgrade.textContent = ctaLabel(act);
+      }
       if (testmode) testmode.hidden = !(S.billing && S.billing.simulated === true);
     } else {
       hidePurchaseUi();
@@ -1177,6 +1396,12 @@
       return;
     }
     panel.hidden = false;
+
+    // 这里**不**判 `capabilities.api`：这个面板只有 Pro 看得见，而服务端对付费用户
+    // 的四个能力位恒为全开（`Entitlement::capabilities()` 的显式分支）。在这里加一个
+    // 永远走不到的分支，就是本项目反复删掉的"恒定假状态"。真要锁 api，锁的是
+    // 免费用户的入口，那不在这个面板里 —— 用 `data-cap="api"` 标在对应元素上即可。
+
     if (!keysLoaded) {
       keysLoaded = true;
       loadKeys();
@@ -1319,10 +1544,9 @@
     state: S
   };
 
-  // P1 上线后在这里接 entitlement，九站不用各改一次（本期只留空位，不实现、不请求）。
-  if (typeof window.VR_ENTITLEMENT_HOOK === 'function') {
-    try { window.VR_ENTITLEMENT_HOOK(api('entitlement')); } catch (e) {}
-  }
+  // entitlement 已在 boot() 里由 `loadEntitlement()` 真接（F5）。
+  // 旧的 `window.VR_ENTITLEMENT_HOOK` 空位到此删除：留着它，站点脚本会以为
+  // "这里还有个由我接管的入口"，而实际上契约已经由本文件统一拉取与渲染。
 
   // 旧名保留一个版本，免得已上线的 app.js 立刻断；下一轮统一删。
   window.SolarAccount = window.VRAccount;

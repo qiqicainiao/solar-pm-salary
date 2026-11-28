@@ -29,7 +29,10 @@ const ALLOWED_SITE_SLUG = 'solar-pm-salary';
    key list forever (proxy answered 405 with an empty body, so the page looked merely
    "slow"). Listing keys is read-only — creating (POST) and revoking (POST) still pass
    through the generic POST path. */
-const GET_PATHS = new Set(['account/me', 'billing/status', 'account/api-keys']);
+/* 2026-11-28 (F5): `entitlement` is read-only and must be GET. Without it here the
+   proxy answers 405 for the six CF sites only (nginx sites reverse-proxy the same
+   path), which looks like "the Pro panel never updates" on exactly half the fleet. */
+const GET_PATHS = new Set(['account/me', 'billing/status', 'account/api-keys', 'entitlement']);
 
 /* Cookie allowlist. Two reasons to filter instead of passing everything through:
    1) privacy — analytics/third-party cookies on this origin have no business reaching the API;
