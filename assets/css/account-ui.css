@@ -1,0 +1,209 @@
+/* account-ui.css —— 九站账号 UI 统一层（2026-11-28）
+ * ------------------------------------------------------------
+ * 为什么存在：account.js 往每站 HTML 里既有的 #account-slot / #auth-modal 填内容，
+ * 按钮和弹层的样式此前完全靠各站自己的 CSS——漏写的站就裸奔（浏览器默认按钮、
+ * 弹层散在页脚）。本文件是**最后一层兜底**：无论站点有没有自己的样式，账号 UI 都
+ * 保证可用、且尽量贴合站点主题。
+ *
+ * 主题适配：颜色一律 `var(--站内变量, 兜底值)`——站点定义过 tokens 就用站点的，
+ * 没定义就用中性兜底，不再出现"黑站上白按钮/白站上黑按钮"的随机搭配。
+ *
+ * Bootstrap 冲突防御（lasazhaopin.com 黑屏的根因）：Bootstrap 3 的 `.modal`
+ * 自带 `display:none`——遮罩显示而对话框被藏住 = 点登录全屏变黑。本文件全部用
+ * `#auth-modal` 作用域（id 特异性 > 类，且与站点其它 .modal 用法互不干扰），
+ * 并显式声明 display，让站点类名冲突失效。
+ *
+ * 加载顺序：放在站点自己的 CSS **之后**（<link> 排在主题 css 后面）。
+ */
+
+/* ---- 页头账号槽位：永远贴 header 右侧 ---- */
+#account-slot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  padding-left: 12px;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+/* 槽位里的按钮：站点若已定义 .btn/.btn-secondary 就以其为准（后加载的同特异性
+   规则会赢——所以这里写的都是"站点没定义时"的兜底形状，靠 var 取主题色） */
+#account-slot .btn {
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+  padding: 6px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+#account-slot .btn-secondary,
+#account-slot button.account-signin {
+  background: var(--color-surface, var(--bg-surface, var(--color-primary, #2563eb)));
+  color: var(--color-primary-text, #fff);
+  border: 1px solid var(--color-border, transparent);
+}
+#account-slot .btn-secondary:hover,
+#account-slot button.account-signin:hover {
+  filter: brightness(1.08);
+}
+.account-who {
+  font-size: 14px;
+  color: var(--color-text-secondary, inherit);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account-badge {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-primary, #2563eb);
+  background: var(--color-primary-soft, rgba(37, 99, 235, 0.12));
+  border-radius: 999px;
+  padding: 2px 8px;
+  text-decoration: none;
+}
+
+/* ---- 登录/注册弹层：全站兜底 ---- */
+#auth-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.55);
+}
+/* 关闭态必须真的关掉（防站点 CSS 或框架把 display 翻回来） */
+#auth-modal[hidden] { display: none !important; }
+
+#auth-modal .modal {
+  /* 对抗 Bootstrap 3 的 `.modal{display:none;position:fixed}`：
+     id 选择器特异性更高 + 显式 display，黑屏根因在此了断 */
+  display: block !important;
+  position: relative;
+  width: 100%;
+  max-width: 380px;
+  max-height: 90vh;
+  overflow: auto;
+  box-sizing: border-box;
+  background: var(--color-surface-raised, var(--bg-card, #fff));
+  color: var(--color-text, #1f2329);
+  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.1));
+  border-radius: 10px;
+  padding: 24px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: left;
+}
+#auth-modal .modal * { box-sizing: border-box; }
+#auth-modal .modal h3 {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-text, #1f2329);
+}
+#auth-modal .modal .modal-sub {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: var(--color-text-secondary, #6b7280);
+}
+#auth-modal .modal-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  background: none;
+  border: 0;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--color-text-secondary, #6b7280);
+  cursor: pointer;
+  padding: 4px;
+}
+#auth-modal .modal label {
+  display: block;
+  font-size: 13px;
+  color: var(--color-text-secondary, #4b5563);
+  margin: 12px 0 6px;
+}
+#auth-modal .modal input {
+  width: 100%;
+  height: 38px;
+  padding: 0 10px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--color-text, #1f2329);
+  background: var(--color-surface, #fafafa);
+  border: 1px solid var(--color-border, #d0d7de);
+  border-radius: 6px;
+}
+#auth-modal .modal input:focus {
+  outline: 2px solid var(--color-primary, #2563eb);
+  outline-offset: -1px;
+}
+#auth-modal #auth-code-row { margin-top: 6px; }
+#auth-modal #auth-code-row input { flex: 1 1 auto; letter-spacing: 2px; }
+#auth-modal #auth-send-code {
+  font: inherit;
+  font-size: 13px;
+  padding: 0 12px;
+  height: 38px;
+  white-space: nowrap;
+  color: var(--color-primary, #2563eb);
+  background: var(--color-primary-soft, rgba(37, 99, 235, 0.1));
+  border: 1px solid var(--color-border, rgba(37, 99, 235, 0.35));
+  border-radius: 6px;
+  cursor: pointer;
+}
+#auth-modal #auth-send-code:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+#auth-modal .auth-error {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--color-danger, #d64545);
+}
+#auth-modal .modal .btn,
+#auth-modal #auth-submit {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+  padding: 10px 14px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-primary-text, #fff);
+  background: var(--color-primary, #2563eb);
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+#auth-modal .modal .btn:hover,
+#auth-modal #auth-submit:hover { filter: brightness(1.08); }
+#auth-modal .modal .btn:disabled,
+#auth-modal #auth-submit:disabled { opacity: 0.6; cursor: wait; }
+#auth-modal .modal-switch { margin: 14px 0 0; font-size: 13px; text-align: center; }
+#auth-modal .modal-switch .link-btn,
+#auth-modal .modal-switch button {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 13px;
+  color: var(--color-primary, #2563eb);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* 手机窄屏：弹层贴边不满屏，槽位不挤压导航 */
+@media (max-width: 480px) {
+  #auth-modal .modal { max-width: 100%; }
+  .account-who { max-width: 110px; }
+}

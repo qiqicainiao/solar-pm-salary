@@ -51,8 +51,12 @@
    * 可覆盖文案。默认英文（与 solarpmlab 的成品一致），中文站/双语站在自己的页面里
    * 先设 `window.VR_ACCOUNT_TEXT = { sign_in: '登录', ... }` 再加载本文件即可，
    * 不需要把这份实现复制成九份各自翻译的副本（九份必然漂移）。
+   *
+   * 2026-11-28 内建中英两套：站点语言判据 = <html lang>（zh* → 中文表），
+   * window.VR_ACCOUNT_TEXT 仍是最高优先级（单站改个别词不用复制整张表）。
+   * 修复"中文站弹层出英文"：lang 表按站自动选，不再依赖每站手抄英文标记。
    */
-  var TEXT = Object.assign({
+  var TEXT_EN = {
     sign_in: 'Sign in',
     sign_out: 'Sign out',
     account_title: 'Your account',
@@ -86,6 +90,24 @@
     account_created: 'Account created.',
     signed_out: 'Signed out.',
 
+    /* 2026-11-28 验证码注册（两步） */
+    code_label: 'Verification code',
+    code_placeholder: '6-digit code from your email',
+    send_code: 'Send code',
+    code_sent: 'Code sent — check your inbox.',
+    code_resend_in: 'Resend in %ds',
+    err_email_required: 'Enter your email first, then request a code.',
+    err_code_required: 'Enter the 6-digit code we emailed you.',
+    err_email_password_required: 'Email and password are required.',
+    err_cooldown: 'Please wait before requesting another code.',
+    err_email_limit: 'Too many codes requested for this email today. Try again tomorrow.',
+    err_ip_limit: 'Too many codes requested from this network today. Try again tomorrow.',
+    err_mail_unavailable: 'Email verification is temporarily unavailable. Please try again later.',
+    err_mail_failed: 'Could not send the email. Please retry in a minute.',
+    err_code_invalid: 'That code is not correct. Check the email and retry.',
+    err_code_expired: 'That code has expired. Request a new one.',
+    err_site_taken: 'That email is already registered on this site. Sign in instead.',
+
     /* F5：按钮与提示一律由 `entitlement.next_action` 决定，前端不再自己判 isPro() 推文案。
      * 七枚举：none / signup / buy_once / buy_credits / subscribe / unlock_feature / wait。 */
     ent_signup: 'Create a free account',
@@ -94,7 +116,77 @@
     ent_unlock: 'Unlock this feature',
     ent_wait: 'Pricing is being adjusted — purchases are paused.',
     cap_locked: 'Included in Pro.'
-  }, window.VR_ACCOUNT_TEXT || {});
+  };
+
+  var TEXT_ZH = {
+    sign_in: '登录',
+    sign_out: '退出登录',
+    account_title: '我的账号',
+    your_account: '我的账号',
+    member_since: '注册于',
+    guest_title: '登录后查看你的账号',
+    guest_body: '套餐状态、续费日期和 API 密钥都挂在登录账号下——登录后才能查看。',
+    create_account: '创建账号',
+    free_plan: '免费版',
+    pro_badge: 'Pro',
+    free_badge: '免费',
+    upgrade: '升级到 Pro',
+    plan_unavailable: '套餐不可用',
+    plan_unread: '暂时读不到你的订阅信息，请刷新本页重试。',
+    pro_until: '有效期至',
+    pro_line: '包含免费版全部功能，且不限次数。',
+    free_includes: '每天 %d 次免费额度，无需绑卡。',
+    free_unlimited: '抢先体验期——全部功能免费，不限次数。',
+    not_on_sale: 'Pro 尚未开售——结账通道即将开放。',
+    pricing_updating: '定价调整中——购买暂时关闭。',
+    test_mode: '测试模式——不会真实扣款。',
+    paid_active_note: '你的 Pro 权益已生效。',
+    loading: '正在加载账号…',
+    email_label: '邮箱',
+    password_label: '密码',
+    auth_sub_login: '计算记录与 Pro 套餐都挂在这个账号下。',
+    auth_sub_register: '本站独立账号，用于你的使用记录与套餐。',
+    auth_switch_to_register: '还没有账号？创建一个',
+    auth_switch_to_login: '已有账号？直接登录',
+    signed_in: '登录成功。',
+    account_created: '注册成功。',
+    signed_out: '已退出登录。',
+
+    code_label: '邮件验证码',
+    code_placeholder: '输入邮箱收到的 6 位验证码',
+    send_code: '发送验证码',
+    code_sent: '验证码已发送，请查收邮箱。',
+    code_resend_in: '%d 秒后可重发',
+    err_email_required: '请先填写邮箱，再获取验证码。',
+    err_code_required: '请输入邮箱收到的 6 位验证码。',
+    err_email_password_required: '请填写邮箱和密码。',
+    err_cooldown: '请求太频繁，请稍后再获取验证码。',
+    err_email_limit: '该邮箱今天获取验证码次数已达上限，请明天再试。',
+    err_ip_limit: '当前网络今天获取验证码次数已达上限，请明天再试。',
+    err_mail_unavailable: '邮件验证通道暂时不可用，请稍后再试。',
+    err_mail_failed: '验证码发送失败，请一分钟后再试。',
+    err_code_invalid: '验证码不正确，请核对邮件后重试。',
+    err_code_expired: '验证码已过期，请重新获取。',
+    err_site_taken: '该邮箱已在本站注册过，请直接登录。',
+
+    ent_signup: '创建免费账号',
+    ent_buy_once: '单次购买',
+    ent_buy_credits: '购买额度',
+    ent_unlock: '解锁该功能',
+    ent_wait: '定价调整中——购买暂停。',
+    cap_locked: 'Pro 功能。'
+  };
+
+  function detectLang() {
+    var attr = document.documentElement.getAttribute('lang') || '';
+    return /^zh/i.test(attr) ? 'zh' : 'en';
+  }
+
+  var TEXT = Object.assign(
+    {},
+    detectLang() === 'zh' ? TEXT_ZH : TEXT_EN,
+    window.VR_ACCOUNT_TEXT || {}
+  );
 
   /** 只支持 %d / %s：文案表里出现别的占位符就是拼错了，别用模板字符串硬拼 */
   function fmt(tpl, values) {
@@ -307,7 +399,12 @@
     // 有 billing/status 就以它为准，不要再用 quota 兜底 —— 两个字段来自同一份服务端数据，
     // 混着判会在"订阅已失效但额度快照还没刷新"时把免费用户显示成 Pro（假绿比假红更贵：
     // 他以为有权限，点下去 403）。只有状态接口整个拿不到时才退回额度里的 plan。
-    if (S.billing) return S.billing.paid === true;
+    // 2026-11-28 S0 口径：pricing.sellable=false（站点不卖）时不算 Pro——
+    // 与账号页的 PRO 卡隐藏同一条判据，别让页头 PRO 徽标和账号页各说各话。
+    if (S.billing) {
+      if (S.billing.pricing && S.billing.pricing.sellable === false) return false;
+      return S.billing.paid === true;
+    }
     if (S.quota && S.quota.plan === 'pro') return true;
     return false;
   }
@@ -926,14 +1023,21 @@
     }
 
     const paid = paidRaw === true;
+    // 2026-11-28 S0 口径：站点 `pricing.sellable=false`（不卖）时，付费订阅一律不按
+    // PRO 权益展示——那些订阅是联调期/测试通道的遗留（如 BILLING_ENV=test 的
+    // Creem 测试单），把"Active until ... Unlimited checks"印给用户看，
+    // 与"本站当前全部免费"直接矛盾。按免费档呈现；等服务端 sellable 翻 true
+    // （站点升阶段+放量）后 PRO 卡自动恢复，前端不写任何站名/阶段硬编码。
+    const sellable = !!(S.billing.pricing && S.billing.pricing.sellable === true);
+    const showPaid = paid && sellable;
     if (badge) {
       badge.hidden = false;
-      badge.textContent = paid ? TEXT.pro_badge : TEXT.free_badge;
-      badge.classList.toggle('is-free', !paid);
+      badge.textContent = showPaid ? TEXT.pro_badge : TEXT.free_badge;
+      badge.classList.toggle('is-free', !showPaid);
     }
-    if (name) name.textContent = paid ? planName(S.billing.plan || '') : TEXT.free_plan;
+    if (name) name.textContent = showPaid ? planName(S.billing.plan || '') : TEXT.free_plan;
 
-    if (paid) {
+    if (showPaid) {
       const until = fmtYmd(S.billing.current_period_end);
       if (line) {
         line.textContent = (until ? TEXT.pro_until + ' ' + until + '. ' : '')
@@ -1239,7 +1343,115 @@
     if (submit) submit.textContent = isLogin ? TEXT.sign_in : TEXT.create_account;
     if (sw) sw.textContent = isLogin ? TEXT.auth_switch_to_register : TEXT.auth_switch_to_login;
     if (pw) pw.setAttribute('autocomplete', isLogin ? 'current-password' : 'new-password');
+    // 2026-11-28 验证码注册：注册模式注入"验证码 + 发码"行（DOM API 动态建，
+    // 不用 innerHTML——有 CSP 的站禁 innerHTML，禁不了 createElement）；
+    // 登录模式把该行藏起来（移除过标记的站不重复注入）。
+    if (isLogin) hideCodeRow();
+    else ensureCodeRow();
     setAuthError('');
+  }
+
+  /** 注册验证码行：email 之后、密码标签之前。所有站通用，标记缺失时由这里补齐。 */
+  function ensureCodeRow() {
+    const form = $('auth-form');
+    if (!form || $('auth-code-row')) return;
+    const pwInput = $('auth-password');
+    const pwLabel = form.querySelector('label[for="auth-password"]');
+    const anchor = pwLabel || pwInput;
+    if (!anchor) return;
+
+    const label = document.createElement('label');
+    label.setAttribute('for', 'auth-code');
+    label.id = 'auth-code-label';
+    label.textContent = TEXT.code_label;
+
+    const row = document.createElement('div');
+    row.id = 'auth-code-row';
+    row.style.display = 'flex';
+    row.style.gap = '8px';
+    row.style.alignItems = 'stretch';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = 'auth-code';
+    input.name = 'code';
+    input.inputMode = 'numeric';
+    input.maxLength = 6;
+    input.autocomplete = 'one-time-code';
+    input.placeholder = TEXT.code_placeholder;
+    input.required = true;
+    input.style.flex = '1 1 auto';
+    input.style.minWidth = '0';
+
+    const send = document.createElement('button');
+    send.type = 'button';
+    send.id = 'auth-send-code';
+    send.textContent = TEXT.send_code;
+    send.style.flex = '0 0 auto';
+    send.style.whiteSpace = 'nowrap';
+    send.addEventListener('click', function () { sendCode(); });
+
+    row.appendChild(input);
+    row.appendChild(send);
+    form.insertBefore(label, anchor);
+    form.insertBefore(row, anchor);
+  }
+
+  function hideCodeRow() {
+    const row = $('auth-code-row');
+    if (row) row.hidden = true;
+    const label = $('auth-code-label');
+    if (label) label.hidden = true;
+    const send = $('auth-send-code');
+    if (send) { send.disabled = false; send.textContent = TEXT.send_code; }
+    stopCodeTimer();
+  }
+
+  var codeTimer = null;
+
+  function stopCodeTimer() {
+    if (codeTimer !== null) { clearInterval(codeTimer); codeTimer = null; }
+    const send = $('auth-send-code');
+    if (send) send.disabled = false;
+  }
+
+  function startCodeCooldown(sec) {
+    const send = $('auth-send-code');
+    if (!send) return;
+    let left = Math.max(1, sec | 0);
+    send.disabled = true;
+    const tick = function () {
+      if (left <= 0) { stopCodeTimer(); if (send) send.textContent = TEXT.send_code; return; }
+      send.textContent = fmt(TEXT.code_resend_in, [left]);
+      left -= 1;
+    };
+    tick();
+    stopCodeTimer();
+    send.disabled = true;
+    codeTimer = setInterval(tick, 1000);
+  }
+
+  /** register/start：给邮箱发 6 位验证码。四道防刷闸在服务端。 */
+  async function sendCode() {
+    if (S.busy) return;
+    const email = ($('auth-email') || {}).value || '';
+    if (!email) { setAuthError(TEXT.err_email_required); return; }
+    const send = $('auth-send-code');
+    if (send) send.disabled = true;
+    S.busy = true;
+    const res = await req(api('account/register/start'), { body: { email: email } });
+    S.busy = false;
+    if (bizOk(res)) {
+      setAuthError('');
+      toast(TEXT.code_sent, 'ok');
+      startCodeCooldown((res.env && res.env.data && res.env.data.cooldown) || 60);
+      return;
+    }
+    // 失败时按服务端给的冷却秒数或默认 60 重新放行倒计时；网络类错误立即放行
+    const reason = res.env && res.env.msg ? String(res.env.msg) : '';
+    if (reason === 'cooldown') { startCodeCooldown(60); }
+    else { stopCodeTimer(); if (send) send.textContent = TEXT.send_code; }
+    setAuthError(authErrorText(res.status, res.env));
   }
 
   function setAuthError(msg) {
@@ -1254,7 +1466,15 @@
     // 注册日限（服务端闸二）：要如实说"这个网络今天注册太多了"，而不是含糊的"稍后再试"——
     // 前者用户知道该换网络或明天再来，后者只会让人反复点。
     if (env && env.code === 'SIGNUP_CAPPED') return 'Too many accounts were created from this network today. Try again tomorrow, or sign in if you already have one.';
-    if (status === 409 || reason === 'email_taken') return 'That email is already registered. Sign in instead.';
+    // 验证码注册（2026-11-28）：新错误面按服务端 reason 映射，文案见 TEXT.err_*
+    if (reason === 'cooldown') return TEXT.err_cooldown;
+    if (reason === 'email_limit') return TEXT.err_email_limit;
+    if (reason === 'ip_limit') return TEXT.err_ip_limit;
+    if (reason === 'mail_unavailable') return TEXT.err_mail_unavailable;
+    if (reason === 'mail_failed') return TEXT.err_mail_failed;
+    if (reason === 'code_invalid') return TEXT.err_code_invalid;
+    if (reason === 'code_expired') return TEXT.err_code_expired;
+    if (status === 409 || reason === 'email_taken') return TEXT.err_site_taken;
     if (status === 429 || reason === 'too_many_attempts') return 'Too many attempts. Please wait a few minutes.';
     if (reason === 'invalid_credentials') return 'Email or password is incorrect.';
     if (reason === 'invalid_email') return 'That email address looks invalid.';
@@ -1270,8 +1490,19 @@
     const email = ($('auth-email') || {}).value || '';
     const password = ($('auth-password') || {}).value || '';
     if (!email || !password) {
-      setAuthError('Email and password are required.');
+      setAuthError(TEXT.err_email_password_required);
       return;
+    }
+
+    // 注册必须带邮箱验证码（2026-11-28）：没有码就不发请求——
+    // 服务端同样会拒（40002），提前拦省一次往返，也让漏注入验证码行的站有兜底提示。
+    let code = '';
+    if (S.authMode === 'register') {
+      code = (($('auth-code') || {}).value || '').trim();
+      if (!/^\d{6}$/.test(code)) {
+        setAuthError(TEXT.err_code_required);
+        return;
+      }
     }
 
     S.busy = true;
@@ -1279,7 +1510,10 @@
     if (submit) submit.disabled = true;
 
     const url = S.authMode === 'login' ? api('account/login') : api('account/register');
-    const res = await req(url, { body: { email: email, password: password } });
+    const body = S.authMode === 'login'
+      ? { email: email, password: password }
+      : { email: email, code: code, password: password };
+    const res = await req(url, { body: body });
 
     S.busy = false;
     if (submit) submit.disabled = false;
