@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pricing | Solar PM Salary Benchmark</title>
-  <meta name="description" content="Solar PM Salary Benchmark pricing. Free plan with 3 lookups per day; Pro with unlimited lookups, CSV export and API access for $12/month or $90/year.">
+  <meta name="description" content="Solar PM Salary Benchmark pricing. Everything on this site is free right now — no daily limit, no card required.">
   <meta name="robots" content="index, follow">
   <meta name="theme-color" content="#2563eb">
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
@@ -13,7 +13,7 @@
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="Solar PM Salary Benchmark">
   <meta property="og:title" content="Pricing | Solar PM Salary Benchmark">
-  <meta property="og:description" content="Free plan with 3 lookups per day. Pro: unlimited lookups, CSV export and API for $12/month or $90/year.">
+  <meta property="og:description" content="Everything on this site is free right now — no daily limit, no card required.">
   <meta property="og:url" content="https://solarpmlab.com/pricing">
   <meta property="og:image" content="https://solarpmlab.com/assets/og-image.png">
   <meta name="twitter:card" content="summary">
@@ -23,49 +23,12 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/tokens.css?v=1.8.0">
   <link rel="stylesheet" href="assets/css/base.css?v=1.8.0">
-  <link rel="stylesheet" href="assets/css/solar-pm-salary.css?v=2.2.0">
+  <link rel="stylesheet" href="assets/css/solar-pm-salary.css?v=2.3.0">
 
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "Product",
-    "name": "Solar PM Salary Benchmark Pro",
-    "description": "Salary benchmark data for solar project managers in the United States: P25 / median / P75 ranges by state, years of experience and certification, with CSV export and API access.",
-    "brand": { "@type": "Brand", "name": "Solar PM Salary Benchmark" },
-    "offers": [
-      {
-        "@type": "Offer",
-        "name": "Pro Monthly",
-        "price": "12.00",
-        "priceCurrency": "USD",
-        "url": "https://solarpmlab.com/pricing",
-        "availability": "https://schema.org/InStock"
-      },
-      {
-        "@type": "Offer",
-        "name": "Pro Yearly",
-        "price": "90.00",
-        "priceCurrency": "USD",
-        "url": "https://solarpmlab.com/pricing",
-        "availability": "https://schema.org/InStock"
-      }
-    ]
-  }
-  </script>
-  <style>
-    /* 移动端（2026-11-27 真机截图发现）：390px 下两张卡片并排 → 每列仅约 170px，
-       正文被压成三四个字一行，价格看起来像被切断；导航 4 个链接也会互相挤。
-       只在这一页加规则，不动共享 CSS（避免为了一个页面把 5 个页面的 ?v 全升一遍）。 */
-    @media (max-width: 720px) {
-      .pricing-grid { grid-template-columns: 1fr !important; }
-      .site-header .container { flex-wrap: wrap; row-gap: .4rem; }
-      .site-header nav { flex-wrap: wrap; }
-    }
-  </style>
   <script src="assets/js/_site_config.js?v=2.4.0"></script>
   <script src="/bff/js/vr-solar-pm-salary.js?v=3.0.0" data-vr-site="solar-pm-salary" defer></script>
 </head>
-<body>
+<body data-page="pricing">
   <header class="site-header">
     <div class="container">
       <div class="site-logo"><a href="/">Solar PM Salary</a></div>
@@ -79,73 +42,17 @@
   </header>
 
   <main class="container-narrow" style="padding-top:var(--space-12);padding-bottom:var(--space-16)">
-    <h1 style="margin-bottom:var(--space-2)">Pricing</h1>
-    <p style="color:var(--text-muted);margin-bottom:var(--space-8)">The calculator stays free. Pro removes the daily limit and adds export and API access.</p>
+    <h1 class="pricing-title" style="margin-bottom:var(--space-2)">Pricing</h1>
 
-    <section style="margin-bottom:var(--space-10)">
-      <div class="pricing-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-6);align-items:start">
-
-        <div style="border:1px solid var(--border, #e5e7eb);border-radius:12px;padding:var(--space-6)">
-          <h2 style="font-size:1.125rem;margin:0 0 .25rem">Free</h2>
-          <p style="margin:0 0 var(--space-4)"><strong style="font-size:1.75rem">$0</strong> <span style="color:var(--text-muted)">forever</span></p>
-          <ul style="margin:0;padding-left:1.1rem;line-height:1.9">
-            <li>3 salary lookups per day</li>
-            <li>All states, experience bands and certifications</li>
-            <li>Correction and missing-data reporting</li>
-            <li>No account required</li>
-          </ul>
-        </div>
-
-        <div style="border:1px solid var(--border, #e5e7eb);border-radius:12px;padding:var(--space-6);background:rgba(37,99,235,.04)">
-          <h2 style="font-size:1.125rem;margin:0 0 .25rem">Pro</h2>
-          <p style="margin:0 0 .25rem"><strong style="font-size:1.75rem">$12</strong> <span style="color:var(--text-muted)">/ month</span></p>
-          <p style="margin:0 0 var(--space-4);color:var(--text-muted)">or <strong>$90 / year</strong> — 37% less, works out to $7.50 per month</p>
-          <ul style="margin:0;padding-left:1.1rem;line-height:1.9">
-            <li><strong>Unlimited</strong> salary lookups</li>
-            <li>CSV export of any result set</li>
-            <li>API access — 1,000 calls per day</li>
-            <li>Priority on data corrections you submit</li>
-            <li>Cancel any time — the link is in your Creem receipt email</li>
-          </ul>
-          <p style="margin:var(--space-4) 0 .5rem"><a class="btn" href="/?plan=pro_monthly" style="display:block;text-align:center;padding:.7rem 1.1rem;border-radius:8px;background:#2563eb;color:#fff;text-decoration:none;font-weight:600">Subscribe — $12 / month</a></p>
-          <p style="margin:0 0 .5rem"><a class="btn" href="/?plan=pro_yearly" style="display:block;text-align:center;padding:.7rem 1.1rem;border-radius:8px;background:#1d4ed8;color:#fff;text-decoration:none;font-weight:600">Subscribe — $90 / year</a></p>
-          <p style="margin:0 0 var(--space-4);color:var(--text-muted);font-size:.9rem">You create an account first, then pay on Creem's secure checkout page. Cancel any time.</p>
-          <p style="margin:0"><a class="btn" href="/" style="display:inline-block;padding:.6rem 1.1rem;border-radius:8px;background:transparent;color:#2563eb;border:1px solid #2563eb;text-decoration:none;font-weight:600">Start with a free lookup</a></p>
-        </div>
-
-      </div>
+    <!-- 不可售时显示；可售时由 account.js 隐藏 -->
+    <section id="pricing-free-note" style="margin-bottom:var(--space-8)">
+      <p>Everything on this site is free right now — no daily limit, no card required.</p>
+      <p>There is no paid tier today. When Pro launches, prices will be published on this page.</p>
     </section>
 
-    <section style="margin-top:var(--space-8)">
-      <h2>What you are buying</h2>
-      <p>A subscription to <strong>Solar PM Salary Benchmark Pro</strong>: a web tool that returns P25 / median / P75 salary ranges for solar project managers in the United States, filtered by state, years of experience, segment and certification. Pro lifts the daily cap, enables CSV export, and issues an API key for programmatic access. Delivery is immediate — the features unlock in your account as soon as payment is confirmed.</p>
-    </section>
-
-    <section style="margin-top:var(--space-8)">
-      <h2>How payment appears on your statement</h2>
-      <p>Payments are processed by <strong>Creem</strong>, which acts as the merchant of record. That means Creem is the legal seller, handles sales tax and VAT for your jurisdiction, and issues your invoice. Your card or bank statement will show <strong>CREEM.IO</strong> (or a closely related descriptor) rather than this site's name. Creem's name on the statement is expected — it is not a duplicate or fraudulent charge.</p>
-      <p>You can update your card, download invoices and cancel from the link in your receipt email. Creem sends that receipt to the address you used at checkout, so keep it.</p>
-    </section>
-
-    <section style="margin-top:var(--space-8)">
-      <h2>Taxes</h2>
-      <p>Prices are listed in US dollars and exclude tax. Applicable sales tax or VAT is calculated at checkout based on your billing country and added to the total by Creem. Business customers can enter a VAT ID at checkout.</p>
-    </section>
-
-    <section style="margin-top:var(--space-8)">
-      <h2>Refunds</h2>
-      <p>14 days, no questions asked — see the <a href="/refund">refund policy</a>.</p>
-    </section>
-
-    <section style="margin-top:var(--space-8)">
-      <h2>What the data is and is not</h2>
-      <p>Salary figures are <strong>estimates</strong> derived from voluntarily submitted corrections, public postings and modelled adjustments. They are aggregated ranges, not offers of employment, and they are not career, legal or financial advice. Sample sizes vary by state and certification; the tool shows the sample size behind every range so you can judge how much weight to give it.</p>
-    </section>
-
-    <section style="margin-top:var(--space-8)">
-      <h2>Questions before you pay</h2>
-      <p>Email <a href="mailto:269715607@qq.com">269715607@qq.com</a>. We answer within two business days.</p>
-    </section>
+    <!-- 可售时才显示；本期永远 hidden，但骨架必须在（后端打开 sellable 时才能长出档位卡） -->
+    <div id="pricing-plans" class="pricing-grid" hidden></div>
+    <p class="pricing-testmode" id="pricing-testmode" hidden>Test mode — no real charge.</p>
 
     <p style="margin-top:var(--space-10);color:var(--text-muted);font-size:.9rem">
       See also: <a href="/terms">Terms of Service</a> · <a href="/refund">Refund Policy</a> · <a href="/solar-pm-salary-privacy">Privacy Policy</a>
@@ -184,6 +91,7 @@
     </div>
   </div>
 
-  <script src="assets/js/account.js?v=3.0.0" data-account-site="solar-pm-salary"></script>
+  <script src="assets/js/account-text.js?v=3.2.0"></script>
+  <script src="assets/js/account.js?v=3.2.0" data-account-site="solar-pm-salary"></script>
 </body>
 </html>

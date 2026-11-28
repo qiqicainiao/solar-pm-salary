@@ -7,7 +7,7 @@
  *      接了之后 `account_id` 才会进信封 —— 订阅、额度、历史才挂得住人。
  *   ② 额度：`check` 的响应里带 `quota_info`（used / remaining / resets_at）。
  *      不显示它就等于让用户在第 4 次点击时突然撞上 403，而前 3 次毫无预警。
- *   ③ 付费墙：只在**真的能买到**的时候给购买按钮（`purchasable`）。
+ *   ③ 付费墙：只在 `pricing.sellable === true` 的时候给购买按钮。
  *      渠道没开户时 checkout 只会 503，摆一个点了没用的按钮比不做付费墙更伤。
  *
  * 三条硬约束：
@@ -68,10 +68,13 @@
     plan_unavailable: 'Plan unavailable',
     plan_unread: 'We could not read your subscription just now. Reload this page.',
     pro_until: 'Active until',
-    pro_line: 'Unlimited checks, CSV export and 1,000 API calls per day.',
-    free_includes: 'Includes %d salary lookups per day, no card needed.',
-    pro_line: 'Unlimited checks, CSV export and 1,000 API calls per day.',
+    pro_line: 'Everything in Free, with no daily limit.',
+    free_includes: 'Includes %d free checks per day, no card needed.',
+    free_unlimited: 'Early access — every tool is free, no daily limit.',
     not_on_sale: 'Pro is not on sale yet — checkout opens soon.',
+    pricing_updating: 'Pricing is being updated — purchases are temporarily closed.',
+    test_mode: 'Test mode — no real charge.',
+    paid_active_note: 'Your Pro features are on.',
     loading: 'Loading your account…',
     email_label: 'Email',
     password_label: 'Password',
@@ -101,11 +104,11 @@
 
   const S = {
     booted: false,
+    site_off: false,   // me 返回 404 = 这站没开账号（不是"未登录"）
     user: null,        // account/me 的 data
     billing: null,     // billing/status 的 data
     quota: null,       // 额度状态（来自 status，或 check 响应）
     plans: [],
-    purchasable: false,
     authMode: 'login',
     busy: false
   };
@@ -161,6 +164,19 @@
     }
   }
 
+  /** S7：不可售时把 `?plan=` 从地址栏摘掉，避免刷新重复触发，也避免旧链接继续传播 */
+  function stripPlanParam() {
+    try {
+      const p = new URLSearchParams(window.location.search);
+      if (!p.has('plan')) return;
+      p.delete('plan');
+      const q = p.toString();
+      window.history.replaceState(null, '', window.location.pathname + (q ? '?' + q : ''));
+    } catch (e) {
+      // 老浏览器没有 replaceState：参数留着只影响观感，不影响判据
+    }
+  }
+
   function pendingPlan() {
     if (consumedPlan) return '';
     try {
@@ -171,14 +187,29 @@
     }
   }
 
-  /** 从定价页过来的人只差一步：已登录就进 checkout，未登录先让他注册 */
+  /**
+   * 从定价页/旧邮件/书签过来的 `?plan=pro_monthly`。
+   *
+   * S7：判据必须是 `pricing.sellable === true`（原来的 `purchasable` 在 S0 期仍为 true，
+   * 手工拼一个 URL 就能绕过页面直接进结账）。不可售时**吃掉参数、清掉 URL、只 toast**，
+   * 绝不发 `/billing/checkout` —— 页面没有入口，不等于用户点不到。
+   */
   async function resumePendingPlan() {
     const plan = pendingPlan();
     if (!plan) return;
+
+    if (!isSellable()) {
+      consumedPlan = plan;
+      stripPlanParam();
+      toast(TEXT.not_on_sale, 'info');
+      return;
+    }
+
     // 已经 Pro 的人不要再进结账页：后端会 409，但让他一路点到付款页再被弹回，
     // 观感是"这站在坑我钱"。如实说清楚，并把 URL 参数吃掉，避免刷新重复触发。
     if (isPro()) {
       consumedPlan = plan;
+      stripPlanParam();
       toast('You already have Pro — nothing was charged.', 'info');
       return;
     }
@@ -187,12 +218,8 @@
       await startCheckout(plan);
       return;
     }
-    if (S.purchasable) {
-      openAuth('register');
-    } else {
-      // 渠道没开户时不说"请稍后"，直接说事实（与卡片上的文案一致）
-      toast('Pro is not on sale yet. We are opening checkout soon.', 'info');
-    }
+    // 真的可售、但还没登录：带到注册/登录，登录完会再走到这里进 checkout
+    openAuth('register');
   }
 
   // ---------------------------------------------------------------- 基础
@@ -294,7 +321,12 @@
     if (bizOk(res) && res.env.data) {
       S.user = res.env.data;
     } else if (res.status === 404) {
-      // 站点没开账号（site.json account.enabled=false）：不是错误，静默降级为无账号
+      // 404 = 这站没开账号（sites.account_enabled=0），不是"未登录"。混成未登录会让页头
+      // 永远画一个点不开的 Sign in（D1）。记下来后由 renderSlot / boot 整块清空。
+      if (!S.site_off && window.console && console.info) {
+        console.info('[account] ' + SITE_ID + ' 未开放账号（account/me 返回 404）：不显示登录入口');
+      }
+      S.site_off = true;
       S.user = { logged_in: false };
     } else {
       S.user = { logged_in: false, degraded: true };
@@ -308,12 +340,10 @@
       // 也不要让人点了之后才发现买不了。
       S.billing = null;
       S.plans = [];
-      S.purchasable = false;
       return;
     }
     S.billing = res.env.data;
     S.plans = Array.isArray(S.billing.plans) ? S.billing.plans : [];
-    S.purchasable = S.billing.purchasable === true;
     if (S.billing.quota) S.quota = S.billing.quota;
   }
 
@@ -324,6 +354,9 @@
     if (redirectPaidReturn()) return;
     await Promise.all([loadMe(), loadStatus()]);
     renderAll();
+    reportPricingSeen();
+    // 404（这站没开账号）：不弹登录框、不处理 ?paid / ?plan，页头也不留入口
+    if (S.site_off) return;
     if (queryFlag('signin') && !(S.user && S.user.logged_in)) openAuth('login');
     // 账号页是"只有登录会员才看得到内容"的页面：没登录直接把登录框递到面前，
     // 而不是让人读一段"请登录"再去找按钮
@@ -344,12 +377,134 @@
     renderQuota();
     renderProPanel();
     renderAccountPage();
+    renderPricingPage();
+  }
+
+  // ---------------------------------------------------------------- 定价判据
+
+  /** billing/status.pricing 块（B1 未上线时为空对象） */
+  function pricingBlock() {
+    return (S.billing && S.billing.pricing) ? S.billing.pricing : {};
+  }
+
+  /**
+   * 唯一判据：严格等于 true 才能渲染任何付费元素。
+   * 字段缺失 / 接口失败 / false 一律按"不可卖"（fail-closed）。
+   */
+  function isSellable() {
+    return pricingBlock().sellable === true;
+  }
+
+  /** 会员页档位卡下方的一句话（§7 第 6/12 条）。只影响文案，不影响布局。 */
+  function pricingNoticeText() {
+    if (!S.billing) return '';
+    if (isSellable()) return '';
+    const p = pricingBlock();
+    if (p.state === 'on_sale') return TEXT.pricing_updating;
+    const n = p.notice ? String(p.notice) : '';
+    if (n.length > 60) return n.slice(0, 60) + '…';
+    return n || TEXT.not_on_sale;
+  }
+
+  /**
+   * 定价页（F2b）：骨架已在 DOM 里、默认 hidden，内容与显隐全由接口决定。
+   * sellable !== true 时只显示"现在免费"两句，不拉任何结账相关请求。
+   */
+  function renderPricingPage() {
+    if (!(document.body && document.body.getAttribute('data-page') === 'pricing')) return;
+
+    const notes = $('pricing-free-note');
+    const plans = $('pricing-plans');
+    const tm = $('pricing-testmode');
+    const sellable = isSellable();
+
+    if (tm) tm.hidden = true;
+    if (notes) notes.hidden = sellable;
+    if (!plans) return;
+
+    if (!sellable) {
+      plans.textContent = '';
+      plans.hidden = true;
+      return;
+    }
+
+    // 价格只来自 plans[]；取不到就整块不渲染，不回退任何默认价。
+    // 真实 plans[] 里还有 Free（price_cents=0、sellable=false）：免费档不是付费卡，
+    // 绝不能给它配一个购买 CTA，所以只画"price>0 且未被标记为不可售"的档位。
+    const list = (S.plans || []).filter(function (x) {
+      return x && typeof x.price_cents === 'number' && x.price_cents > 0 && x.sellable !== false;
+    });
+    if (!list.length) {
+      plans.textContent = '';
+      plans.hidden = true;
+      if (notes) notes.hidden = false;
+      return;
+    }
+
+    plans.textContent = '';
+    list.forEach(function (plan) {
+      const card = document.createElement('div');
+      card.className = 'pricing-plan';
+
+      const name = document.createElement('h2');
+      name.className = 'pricing-plan-name';
+      name.textContent = plan.name || plan.plan_code || plan.code || '';
+      card.appendChild(name);
+
+      const price = document.createElement('p');
+      price.className = 'pricing-plan-price';
+      price.textContent = priceText(plan) + ' ' + intervalLabel(plan);
+      card.appendChild(price);
+
+      const cta = document.createElement('button');
+      cta.type = 'button';
+      cta.className = 'btn btn-primary';
+      cta.textContent = TEXT.upgrade;
+      cta.addEventListener('click', function () {
+        startCheckout(plan.plan_code || plan.code);
+      });
+      card.appendChild(cta);
+
+      if (S.billing && S.billing.simulated === true) {
+        const note = document.createElement('p');
+        note.className = 'account-note account-testmode';
+        note.textContent = TEXT.test_mode;
+        card.appendChild(note);
+      }
+
+      plans.appendChild(card);
+    });
+    plans.hidden = false;
+  }
+
+  let pricingReported = false;
+  /** §12.1：拿到 billing/status 后上报一次"用户看到的是哪一版定价"。不自造通道。 */
+  function reportPricingSeen() {
+    if (pricingReported) return;
+    pricingReported = true;
+    try {
+      const p = pricingBlock();
+      const payload = {
+        site: SITE_ID,
+        state: p.state || null,
+        preset: p.preset || null,
+        version: (typeof p.version === 'number') ? p.version : null,
+        sellable: p.sellable === true
+      };
+      // v3 SDK 目前只暴露 run/blocked；有通用事件通道时再上报，不发明接口。
+      if (window.VR && typeof window.VR.track === 'function') {
+        window.VR.track('pricing_state_seen', payload);
+      } else if (window.Telemetry && typeof window.Telemetry.track === 'function') {
+        window.Telemetry.track('pricing_state_seen', payload);
+      }
+    } catch (e) { /* 埋点失败不影响页面 */ }
   }
 
   function renderSlot() {
     const slot = $('account-slot');
     if (!slot) return;
     slot.innerHTML = '';
+    if (S.site_off) return; // 这站没开账号：槽位保持空，不画 Sign in
 
     const loggedIn = !!(S.user && S.user.logged_in);
 
@@ -447,9 +602,20 @@
     const loading = $('account-loading');
     if (loading) loading.hidden = true;
 
-    const loggedIn = !!(S.user && S.user.logged_in);
     const guest = $('account-guest');
     const box = $('account-signedin');
+    const closed = $('account-closed');
+
+    // 站点没开账号（me 返回 404）：只给一句话，别让人反复点登录
+    if (S.site_off) {
+      if (closed) closed.hidden = false;
+      if (guest) guest.hidden = true;
+      if (box) box.hidden = true;
+      return;
+    }
+    if (closed) closed.hidden = true;
+
+    const loggedIn = !!(S.user && S.user.logged_in);
     if (guest) guest.hidden = loggedIn;
     if (box) box.hidden = !loggedIn;
     if (!loggedIn) return;
@@ -467,19 +633,29 @@
     const quota = $('account-quota');
     const manage = $('account-manage');
     const upgrade = $('account-upgrade');
+    const testmode = $('account-testmode');
+    const notice = $('account-pricing-notice');
 
-    if (!S.billing) {
+    function hidePurchaseUi() {
+      if (upgrade) upgrade.hidden = true;
+      if (testmode) testmode.hidden = true;
+    }
+
+    // 读不到订阅（billing/status 整体失败，或 paid === null）：说"没读到"，不许降级成 Free
+    const paidRaw = S.billing ? S.billing.paid : null;
+    if (!S.billing || paidRaw === null) {
       if (badge) badge.hidden = true;
       if (name) name.textContent = TEXT.plan_unavailable;
       if (line) line.textContent = 'We could not read your subscription just now. Reload this page — '
         + 'if it keeps failing, email 269715607@qq.com.';
       if (quota) quota.hidden = true;
       if (manage) manage.hidden = true;
-      if (upgrade) upgrade.hidden = true;
+      if (notice) notice.hidden = true;
+      hidePurchaseUi();
       return;
     }
 
-    const paid = S.billing.paid === true;
+    const paid = paidRaw === true;
     if (badge) {
       badge.hidden = false;
       badge.textContent = paid ? TEXT.pro_badge : TEXT.free_badge;
@@ -496,13 +672,19 @@
       // 付费档不显示"还剩 N 次"：那是免费额度，混在一起看会以为 Pro 也有上限
       if (quota) quota.hidden = true;
       if (manage) manage.hidden = false;
-      if (upgrade) upgrade.hidden = true;
+      if (notice) notice.hidden = true;
+      hidePurchaseUi(); // 已开通的人不需要 Upgrade
       return;
     }
 
+    // 免费档
     const daily = S.billing.free_quota_daily;
     if (line) {
-      line.textContent = daily ? fmt(TEXT.free_includes, [daily]) : TEXT.free_plan;
+      // 撤限（free_quota_daily === null）时整句换成 Early access；
+      // 只有整数才套 free_includes 模板（否则会印出 "Includes null ..."）。
+      line.textContent = (typeof daily === 'number' && daily > 0)
+        ? fmt(TEXT.free_includes, [daily])
+        : TEXT.free_unlimited;
     }
     const qTxt = freeQuotaText(S.quota);
     if (quota) {
@@ -511,7 +693,21 @@
       quota.classList.toggle('is-blocked', !!(S.quota && S.quota.is_blocked === true));
     }
     if (manage) manage.hidden = true;
-    if (upgrade) upgrade.hidden = false;
+
+    // 定价说明（§7 第 6/12 条）：不可售时给一句话，不出现任何价格
+    const nTxt = pricingNoticeText();
+    if (notice) {
+      notice.hidden = nTxt === '';
+      notice.textContent = nTxt;
+    }
+
+    // 购买入口只在真的能卖时出现（sellable === true）
+    if (isSellable()) {
+      if (upgrade) upgrade.hidden = false;
+      if (testmode) testmode.hidden = !(S.billing && S.billing.simulated === true);
+    } else {
+      hidePurchaseUi();
+    }
   }
 
   function setText(id, text) {
@@ -546,9 +742,12 @@
     const q = S.quota || {};
     const resetTxt = resetsInText(q.resets_at_epoch);
     const p = document.createElement('p');
-    p.textContent = 'The free plan includes ' + (q.limit || 3) + ' checks per day.'
+    // S4：撤限后 q.limit 是 null，不能再用 `|| 3` 兜底 —— 那会把已撤掉的限制重新宣布出来。
+    // 有整数才说次数，否则只说"用完了"。
+    const hasLimit = (q.limit !== null && q.limit !== undefined);
+    p.textContent = (hasLimit ? 'The free plan includes ' + q.limit + ' checks per day.' : 'You have reached the free limit.')
       + (resetTxt ? ' Your quota resets in ' + resetTxt + '.' : '')
-      + ' Nothing is lost — come back later, or go unlimited with Pro.';
+      + ' Nothing is lost — come back later.';
     card.appendChild(p);
 
     // 计划卡片：价格只显示，不运算（金额由服务端 PlanCatalog 决定）
@@ -584,7 +783,9 @@
     const actions = document.createElement('div');
     actions.className = 'paywall-actions';
 
-    if (S.purchasable && sellable.length) {
+    // 判据只有 pricing.sellable === true（D5）。purchasable 只表示"配了真产品"，
+    // S0 期 solar 仍为 true，用它画按钮等于把已下架的东西挂回货架。
+    if (isSellable() && sellable.length) {
       const buy = document.createElement('button');
       buy.type = 'button';
       buy.className = 'btn btn-primary';
@@ -595,6 +796,13 @@
         startCheckout((monthly || sellable[0]).plan_code);
       });
       actions.appendChild(buy);
+      // S5：模拟渠道下每个 CTA 下方都要标注，免得让人以为真扣款
+      if (S.billing && S.billing.simulated === true) {
+        const tm = document.createElement('p');
+        tm.className = 'account-note account-testmode';
+        tm.textContent = TEXT.test_mode;
+        actions.appendChild(tm);
+      }
     } else {
       // 买不了就说实话：不放假按钮，也不假装"正在处理"
       const note = document.createElement('p');
@@ -713,7 +921,6 @@
 
     if (res.status === 503) {
       // 渠道没配 / 报文翻译没实现：把状态同步下来，别让按钮继续骗人
-      S.purchasable = false;
       renderAll();
       toast('Pro is not on sale yet. We are opening checkout soon.', 'error');
       return;
@@ -859,7 +1066,7 @@
   function paidActiveText() {
     const until = (S.billing && S.billing.current_period_end) ? fmtYmd(S.billing.current_period_end) : '';
     return 'Pro is active' + (until ? ' until ' + until : '')
-      + '. Unlimited checks, CSV export and API access are on.';
+      + '. ' + (TEXT.paid_active_note || 'Your Pro features are on.');
   }
 
   /** 确认已开通后把 ?paid=1 摘掉：留着它，刷新一次就重放一遍提示，像在反复邀功 */
@@ -1070,6 +1277,11 @@
     createKey: createKey,
     state: S
   };
+
+  // P1 上线后在这里接 entitlement，九站不用各改一次（本期只留空位，不实现、不请求）。
+  if (typeof window.VR_ENTITLEMENT_HOOK === 'function') {
+    try { window.VR_ENTITLEMENT_HOOK(api('entitlement')); } catch (e) {}
+  }
 
   // 旧名保留一个版本，免得已上线的 app.js 立刻断；下一轮统一删。
   window.SolarAccount = window.VRAccount;

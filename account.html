@@ -55,6 +55,12 @@
       </div>
     </section>
 
+    <!-- 站点没开账号（me 返回 404）：只给一句说明，别让人反复点登录 -->
+    <section class="account-card" id="account-closed" hidden>
+      <h2>Accounts are not open on this site yet</h2>
+      <p class="account-note">Everything on this site works without signing in.</p>
+    </section>
+
     <div id="account-signedin" hidden>
       <p class="account-lead">
         Signed in as <strong id="account-email">—</strong><span id="account-since-wrap" hidden> · member since <span id="account-since"></span></span>
@@ -67,8 +73,10 @@
         </div>
         <p id="account-plan-line">…</p>
         <p class="account-note" id="account-quota" hidden></p>
+        <p class="account-note" id="account-pricing-notice" hidden></p>
         <p class="account-note" id="account-manage" hidden>Change your card, download invoices or cancel from the link in your Creem receipt email.</p>
         <a class="btn btn-primary account-cta" id="account-upgrade" href="/pricing" hidden>Upgrade to Pro</a>
+        <p class="account-note account-testmode" id="account-testmode" hidden>Test mode — no real charge.</p>
       </section>
 
       <!-- Pro 面板：只在「已登录 + 有效订阅」时由 account.js 显示（默认 hidden，不占位）。
@@ -117,6 +125,7 @@
     </div>
   </div>
 
-  <script src="assets/js/account.js?v=3.0.0" data-account-site="solar-pm-salary"></script>
+  <script src="assets/js/account-text.js?v=3.2.0"></script>
+  <script src="assets/js/account.js?v=3.2.0" data-account-site="solar-pm-salary"></script>
 </body>
 </html>
