@@ -4,6 +4,26 @@
 
   const $ = (id) => document.getElementById(id);
 
+  /*
+   * 功能锁（F5.4）：`data-cap` 的判据在 account.js 的 applyCapabilities()，而它只在
+   * renderAll() 里跑一次。结果区的按钮是运行时造的，首帧之后新建的元素永远扫不到 ——
+   * 于是"锁机制齐备、按钮上却一把锁都没有"。造完按钮挂标记，并当场补一次 apply()。
+   *
+   * 判据只认 window.VR_CAP（它读的是 entitlement.capabilities）；原先这里用
+   * SolarAccount.isPro() 在点击时才拦，等于第二个真相源，且按钮看起来始终可用。
+   */
+  function markExport(ids) {
+    ids.forEach((id) => {
+      const b = $(id);
+      if (b) b.setAttribute("data-cap", "export");
+    });
+  }
+  function applyCaps() {
+    try {
+      if (window.VR_CAP && typeof window.VR_CAP.apply === "function") window.VR_CAP.apply();
+    } catch (_) { /* 锁不上不影响导出本身 */ }
+  }
+
   function initCustomSelect(selectId, containerId, label) {
     const native = $(selectId);
     const container = $(containerId);
@@ -620,6 +640,8 @@
       '<button type="button" class="action-btn util" id="btn-copy-result">⧉ Copy result</button>' +
       '<button type="button" class="action-btn util" id="btn-export-csv">↓ Export CSV</button>';
     resultsEl.appendChild(actions);
+    markExport(["btn-copy-result", "btn-export-csv"]);
+    applyCaps();
 
     // 复制/导出不依赖后端归因，mock 模式下也照常可用（方便本地验收）。
     const copyBtn = document.getElementById("btn-copy-result");
@@ -628,8 +650,11 @@
     if (exportBtn) exportBtn.addEventListener("click", () => {
       // 定价页把 CSV 列为 Pro 权益（"Pro ... enables CSV export"）：承诺了就得真拦。
       // 不拦的后果不是"少赚"，是"卖一个本来免费的功能"——退款争议时这一条站不住。
-      const acct = window.SolarAccount;
-      if (acct && typeof acct.isPro === "function" && !acct.isPro()) {
+      //
+      // 拦法有两层，判据只有一个：按钮由 data-cap 直接置灰（点不到），
+      // 这里再判一次只为覆盖"account.js 还没跑起来"的窗口；两处都问 VR_CAP，
+      // 也就是 entitlement.capabilities 那一个真相源（不再用 isPro() 另算一遍）。
+      if (window.VR_CAP && typeof window.VR_CAP.can === "function" && !window.VR_CAP.can("export")) {
         toast("CSV export is a Pro feature. Upgrade from the pricing page.", "error");
         return;
       }
