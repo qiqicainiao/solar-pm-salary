@@ -357,6 +357,7 @@
     reportPricingSeen();
     // 404（这站没开账号）：不弹登录框、不处理 ?paid / ?plan，页头也不留入口
     if (S.site_off) return;
+    startSellableWatch();
     if (queryFlag('signin') && !(S.user && S.user.logged_in)) openAuth('login');
     // 账号页是"只有登录会员才看得到内容"的页面：没登录直接把登录框递到面前，
     // 而不是让人读一段"请登录"再去找按钮
@@ -368,6 +369,46 @@
   async function refresh() {
     await Promise.all([loadMe(), loadStatus()]);
     renderAll();
+  }
+
+  // §9.1②：sellable 从 false 变 true 时前端自动刷新，不依赖用户手动刷新页面。
+  // 触发：① 定价/账号页标签页重新可见（visibilitychange hidden→visible）；② 定价页未开卖时低频轮询。
+  let SELLABLE_WATCH = { started: false, pollTimer: null, pollEveryMs: 5 * 60 * 1000 };
+
+  function isPricingPage() {
+    return document.body && document.body.getAttribute('data-page') === 'pricing';
+  }
+
+  async function recheckSellable() {
+    const wasSellable = isSellable();
+    try {
+      await loadStatus();
+    } catch (e) {
+      // 网络抖动：保留当前渲染，不因一次失败就清掉已开卖的卡片
+      return;
+    }
+    renderAll();
+    // 定价状态翻转时重置上报闸门，让新状态再上报一次（同一状态不重复上报）
+    if (wasSellable !== isSellable()) pricingReported = false;
+    reportPricingSeen();
+  }
+
+  function scheduleSellablePoll() {
+    if (SELLABLE_WATCH.pollTimer) { clearTimeout(SELLABLE_WATCH.pollTimer); SELLABLE_WATCH.pollTimer = null; }
+    // 只在定价页且当前不可卖时轮询；开卖后 renderAll 已长出卡片，即停
+    if (!isPricingPage() || isSellable()) return;
+    SELLABLE_WATCH.pollTimer = setTimeout(function () {
+      recheckSellable().then(scheduleSellablePoll);
+    }, SELLABLE_WATCH.pollEveryMs);
+  }
+
+  function startSellableWatch() {
+    if (SELLABLE_WATCH.started) return;
+    SELLABLE_WATCH.started = true;
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden && (isPricingPage() || isAccountPage())) recheckSellable();
+    });
+    scheduleSellablePoll();
   }
 
   // ---------------------------------------------------------------- 渲染
